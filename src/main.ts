@@ -67,5 +67,8 @@ async function bootstrap() {
 
   logger.log(`Starting server on port ${configService.server.port}...`);
   await app.listen(configService.server.port);
+  logger.log(
+    `Swagger docs available at http://localhost:${configService.server.port}/docs`,
+  );
 }
 bootstrap();

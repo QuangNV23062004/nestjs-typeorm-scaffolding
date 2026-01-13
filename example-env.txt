@@ -1,0 +1,27 @@
+API_PREFIX="/api"
+API_VERSION="v1"
+NODE_ENV="development"
+PORT=2000
+
+CLIENT_URL_1="http://localhost:3000"
+CLIENT_URL_2="http://localhost:5173"
+
+DB_TYPE="postgres"
+DB_HOST="localhost"
+DB_PORT=5432
+DB_USERNAME="postgres"
+DB_PASSWORD="postgres"
+DB_NAME="postgres"
+DB_SYNCHRONIZE=true
+
+JWT_ACCESS_PUBLIC_SECRET=your_access_public_key
+JWT_ACCESS_PRIVATE_SECRET=your_access_private_key
+JWT_ACCESS_EXPIRES_IN=1h
+JWT_REFRESH_PUBLIC_SECRET=your_refresh_public_key
+JWT_REFRESH_PRIVATE_SECRET=your_refresh_private_key
+JWT_REFRESH_EXPIRES_IN=30d
+
+EMAIL_HOST="smtp.example.com"
+EMAIL_PORT=587
+EMAIL_USER="example@gmail.com"
+EMAIL_PASSWORD="xxxx xxxx xxxx xxxx"

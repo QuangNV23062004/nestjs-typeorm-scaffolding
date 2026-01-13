@@ -18,16 +18,43 @@ import { CreateAccountDto } from './dtos';
 import { UpdateAccountDto } from './dtos';
 import { Roles } from 'src/decorators';
 import { Role } from './enums/role.enum';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+  ApiBody,
+} from '@nestjs/swagger';
 
+@ApiTags('Account')
+@ApiBearerAuth()
 @Controller('account')
 export class AccountController {
   constructor(@Inject() private readonly accountService: AccountService) {}
 
+  @ApiOperation({ summary: 'Find Account by Email' })
+  @ApiQuery({
+    name: 'email',
+    required: true,
+    description: 'Email to search for',
+  })
+  @ApiResponse({ status: 200, description: 'Account found' })
+  @ApiResponse({ status: 404, description: 'Account not found' })
   @Get('by-email')
   async FindByEmail(@Query('email') email: string) {
     return this.accountService.FindByEmail(email);
   }
 
+  @ApiOperation({ summary: 'Get All Accounts (List)' })
+  @ApiQuery({
+    name: 'includeDeleted',
+    required: false,
+    type: Boolean,
+    description: 'Include soft-deleted accounts',
+  })
+  @ApiResponse({ status: 200, description: 'List of accounts' })
   @Roles(Role.ADMIN, Role.MANAGER)
   @Get('all')
   async FindAll(
@@ -42,6 +69,14 @@ export class AccountController {
     );
   }
 
+  @ApiOperation({ summary: 'Get All Accounts (Paginated)' })
+  @ApiQuery({
+    name: 'includeDeleted',
+    required: false,
+    type: Boolean,
+    description: 'Include soft-deleted accounts',
+  })
+  @ApiResponse({ status: 200, description: 'Paginated list of accounts' })
   @Roles(Role.ADMIN, Role.MANAGER)
   @Get()
   async FindPaginated(
@@ -56,6 +91,16 @@ export class AccountController {
     );
   }
 
+  @ApiOperation({ summary: 'Find Account by ID' })
+  @ApiParam({ name: 'id', required: true, description: 'Account ID' })
+  @ApiQuery({
+    name: 'includeDeleted',
+    required: false,
+    type: Boolean,
+    description: 'Include soft-deleted accounts',
+  })
+  @ApiResponse({ status: 200, description: 'Account found' })
+  @ApiResponse({ status: 404, description: 'Account not found' })
   @Roles(Role.ADMIN, Role.ANNOTATOR, Role.MANAGER, Role.REVIEWER)
   @Get(':id')
   async FindById(
@@ -70,12 +115,21 @@ export class AccountController {
     );
   }
 
+  @ApiOperation({ summary: 'Create new Account' })
+  @ApiBody({ type: CreateAccountDto })
+  @ApiResponse({ status: 201, description: 'Account created' })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
   @Roles(Role.ADMIN)
   @Post()
   async Create(@Body() createAccountDto: CreateAccountDto) {
     return this.accountService.Create(createAccountDto);
   }
 
+  @ApiOperation({ summary: 'Update Account' })
+  @ApiParam({ name: 'id', required: true, description: 'Account ID to update' })
+  @ApiBody({ type: UpdateAccountDto })
+  @ApiResponse({ status: 200, description: 'Account updated' })
+  @ApiResponse({ status: 404, description: 'Account not found' })
   @Roles(Role.ADMIN, Role.ANNOTATOR, Role.MANAGER, Role.REVIEWER)
   @Patch(':id')
   @Put(':id')
@@ -91,6 +145,9 @@ export class AccountController {
     );
   }
 
+  @ApiOperation({ summary: 'Soft Delete Account' })
+  @ApiParam({ name: 'id', required: true, description: 'Account ID to delete' })
+  @ApiResponse({ status: 200, description: 'Account soft deleted' })
   @Roles(Role.ADMIN)
   @Delete(':id')
   async SoftDelete(
@@ -100,6 +157,13 @@ export class AccountController {
     return this.accountService.SoftDelete(id, request.accountInfo);
   }
 
+  @ApiOperation({ summary: 'Restore Account' })
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'Account ID to restore',
+  })
+  @ApiResponse({ status: 200, description: 'Account restored' })
   @Roles(Role.ADMIN)
   @Post('restore/:id')
   async Restore(
@@ -109,6 +173,13 @@ export class AccountController {
     return await this.accountService.Restore(id, request.accountInfo);
   }
 
+  @ApiOperation({ summary: 'Hard Delete Account' })
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'Account ID to hard delete',
+  })
+  @ApiResponse({ status: 200, description: 'Account permanently deleted' })
   @Roles(Role.ADMIN)
   @Delete('hard/:id')
   async HardDelete(
