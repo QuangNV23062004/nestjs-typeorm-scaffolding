@@ -10,6 +10,11 @@ export const databaseConfig = registerAs(
     username: process.env.DB_USERNAME || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_NAME || 'data_labeling_db',
-    synchronize: process.env.DB_SYNCHRONIZE === 'true' || false,
+    synchronize:
+      (process.env.DB_SYNCHRONIZE === 'true' &&
+        process.env.NODE_ENV !== 'production') ||
+      false,
+    ssl: process.env.DB_SSL === 'true' || false,
+    logging: process.env.DB_LOGGING === 'true' || false,
   }),
 );

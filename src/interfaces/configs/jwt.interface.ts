@@ -5,4 +5,6 @@ export interface JwtConfig {
   publicRefreshKey: string;
   privateRefreshKey: string;
   refreshExpiresIn: string;
+  resetPasswordKey: string;
+  resetPasswordExpiresIn: string;
 }

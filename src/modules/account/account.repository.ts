@@ -147,18 +147,27 @@ export class AccountRepository {
     return repository.save(account);
   }
 
-  async SoftDelete(id: string, entityManager?: EntityManager): Promise<void> {
+  async SoftDelete(
+    id: string,
+    entityManager?: EntityManager,
+  ): Promise<boolean> {
     const repository = await this.GetRepository(entityManager);
-    await repository.update(id, { isDeleted: true });
+    const result = await repository.update(id, { isDeleted: true });
+    return (result?.affected as number) > 0;
   }
 
-  async HardDelete(id: string, entityManager?: EntityManager): Promise<void> {
+  async HardDelete(
+    id: string,
+    entityManager?: EntityManager,
+  ): Promise<boolean> {
     const repository = await this.GetRepository(entityManager);
-    await repository.delete(id);
+    const result = await repository.delete(id);
+    return (result?.affected as number) > 0;
   }
 
-  async Restore(id: string, entityManager?: EntityManager): Promise<void> {
+  async Restore(id: string, entityManager?: EntityManager): Promise<boolean> {
     const repository = await this.GetRepository(entityManager);
-    await repository.update(id, { isDeleted: false });
+    const result = await repository.update(id, { isDeleted: false });
+    return (result?.affected as number) > 0;
   }
 }

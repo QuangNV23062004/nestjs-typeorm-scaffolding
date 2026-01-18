@@ -10,13 +10,13 @@ import { TypedConfigService } from 'src/common/typed-config/typed-config.service
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { Request } from 'express';
 import { extractAccessToken } from 'src/common/utils/extract-token.utils';
+import { AuthJwtService } from 'src/modules/auth/services/auth-jwt.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private jwtService: JwtService,
-    private typedConfigService: TypedConfigService,
+    private authJwtService: AuthJwtService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -35,11 +35,9 @@ export class AuthGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync(token, {
-        publicKey: this.typedConfigService.jwt.publicAccessKey,
-      });
+      const payload = await this.authJwtService.verifyAccessToken(token);
 
-      request.user = payload;
+      request.accountInfo = payload;
     } catch (error) {
       console.log(error);
       throw new UnauthorizedException('Invalid or expired token');

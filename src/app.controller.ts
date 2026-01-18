@@ -10,6 +10,11 @@ export class AppController {
     return this.appService.getHello();
   }
 
+  @Get('health-check')
+  healthCheck() {
+    return { status: 'OK' };
+  }
+
   @Get('test-time-out')
   test() {
     return new Promise((resolve, reject) => {

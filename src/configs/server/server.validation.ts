@@ -38,4 +38,11 @@ export const serverValidation = {
     .required()
     .description('Client URL 2 for CORS')
     .error(new Error('CLIENT_URL_2 is required')),
+
+  SERVER_HOST: Joi.string()
+    .uri()
+    .default('http://localhost')
+    .required()
+    .description('Server host URL')
+    .error(new Error('SERVER_HOST is required')),
 };

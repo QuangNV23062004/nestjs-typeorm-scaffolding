@@ -10,12 +10,14 @@ import { Status } from './enums/account-status.enum';
 import * as bcrypt from 'bcrypt';
 import { UpdateAccountDto } from './dtos/update-account.dto';
 import { AccountException } from './exceptions/account-exceptions.exceptions';
+import { AuthPasswordService } from '../auth/services/auth-password.service';
 
 @Injectable()
 export class AccountService {
   constructor(
-    @Inject()
     private readonly accountRepository: AccountRepository,
+
+    private readonly authPasswordService: AuthPasswordService,
   ) {}
 
   private getIncludeDeleted(
@@ -37,16 +39,6 @@ export class AccountService {
     if (accountInfo?.sub !== id && accountInfo?.role !== Role.ADMIN) {
       throw AccountException.INSUFFICIENT_PERMISSION;
     }
-  }
-
-  private async createPasswordHash(
-    password: string,
-  ): Promise<{ passwordHash: string; passwordSalt: string }> {
-    const salt = await bcrypt.genSalt(10);
-
-    const hash = await bcrypt.hash(password, salt);
-
-    return { passwordHash: hash, passwordSalt: salt };
   }
 
   async FindByEmail(
@@ -127,15 +119,15 @@ export class AccountService {
       throw AccountException.EMAIL_IN_USE;
     }
 
-    const { passwordHash, passwordSalt } =
-      await this.createPasswordHash('123456');
+    const { hash, salt } =
+      await this.authPasswordService.hashPassword('123456');
 
     const accountEntity: Partial<AccountEntity> = {
       email: account.email,
       username: account.username,
       role: account.role,
-      passwordHash: passwordHash,
-      passwordSalt: passwordSalt,
+      passwordHash: hash,
+      passwordSalt: salt,
       status: Status.NEED_CHANGE_PASSWORD,
     };
     return this.accountRepository.Create(accountEntity as AccountEntity);
@@ -173,22 +165,10 @@ export class AccountService {
       account.role = updateAccountDto.role;
     }
 
-    if (updateAccountDto.password) {
-      const { passwordHash, passwordSalt } = await this.createPasswordHash(
-        updateAccountDto.password,
-      );
-      account.passwordHash = passwordHash;
-      account.passwordSalt = passwordSalt;
-
-      if (account.status === Status.NEED_CHANGE_PASSWORD) {
-        account.status = Status.ACTIVE;
-      }
-    }
-
     return this.accountRepository.Update(account);
   }
 
-  async SoftDelete(id: string, accountInfo?: AccountInfo): Promise<void> {
+  async SoftDelete(id: string, accountInfo?: AccountInfo): Promise<boolean> {
     this.checkPermission(id, accountInfo);
 
     const account = await this.accountRepository.FindById(id, false);
@@ -196,10 +176,10 @@ export class AccountService {
       throw AccountException.ACCOUNT_NOT_FOUND;
     }
 
-    await this.accountRepository.SoftDelete(id);
+    return await this.accountRepository.SoftDelete(id);
   }
 
-  async Restore(id: string, accountInfo?: AccountInfo): Promise<void> {
+  async Restore(id: string, accountInfo?: AccountInfo): Promise<boolean> {
     this.checkPermission(id, accountInfo);
 
     const account = await this.accountRepository.FindById(id, true);
@@ -208,10 +188,10 @@ export class AccountService {
       throw AccountException.ACCOUNT_NOT_FOUND;
     }
 
-    await this.accountRepository.Restore(id);
+    return await this.accountRepository.Restore(id);
   }
 
-  async HardDelete(id: string, accountInfo?: AccountInfo): Promise<void> {
+  async HardDelete(id: string, accountInfo?: AccountInfo): Promise<boolean> {
     this.checkPermission(id, accountInfo);
     const account = await this.accountRepository.FindById(id, true);
 
@@ -219,6 +199,36 @@ export class AccountService {
       throw AccountException.ACCOUNT_NOT_FOUND;
     }
 
-    await this.accountRepository.HardDelete(id);
+    return await this.accountRepository.HardDelete(id);
+  }
+
+  async BootstrapAdminAccount(): Promise<void> {
+    const users = await this.FindAll();
+    let createAdmin = false;
+    if (users.length === 0) {
+      createAdmin = true;
+    }
+
+    if (users.find((user) => user.role === Role.ADMIN)) {
+      createAdmin = false;
+    }
+    if (createAdmin) {
+      const { hash, salt } =
+        await this.authPasswordService.hashPassword('admin123');
+
+      const adminAccount: Partial<AccountEntity> = {
+        email: 'admin@example.com',
+        username: 'admin',
+        role: Role.ADMIN,
+        passwordHash: hash,
+        passwordSalt: salt,
+        status: Status.NEED_CHANGE_PASSWORD,
+      };
+
+      await this.accountRepository.Create(adminAccount as AccountEntity);
+      return;
+    }
+
+    return;
   }
 }

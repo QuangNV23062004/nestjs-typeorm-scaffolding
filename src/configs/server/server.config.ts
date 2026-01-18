@@ -8,5 +8,6 @@ export const serverConfig = registerAs(
     port: Number(process.env.PORT ?? 2000),
     prefix: process.env.API_PREFIX || '/api',
     version: process.env.API_VERSION || 'v1',
+    host: process.env.SERVER_HOST || 'http://localhost',
   }),
 );

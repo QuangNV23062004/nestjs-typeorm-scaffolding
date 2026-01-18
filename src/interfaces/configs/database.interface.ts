@@ -6,4 +6,6 @@ export interface DatabaseConfig {
   password: string;
   database: string;
   synchronize: boolean;
+  ssl: boolean;
+  logging: boolean;
 }

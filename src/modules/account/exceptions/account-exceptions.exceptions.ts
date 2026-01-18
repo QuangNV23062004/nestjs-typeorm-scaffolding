@@ -20,4 +20,8 @@ export const AccountException = {
     'Only admin can update other user accounts',
     HttpStatus.FORBIDDEN,
   ),
+  FAILED_TO_BOOTSTRAP_ADMIN_ACCOUNT: new HttpException(
+    'Failed to bootstrap admin account',
+    HttpStatus.INTERNAL_SERVER_ERROR,
+  ),
 };

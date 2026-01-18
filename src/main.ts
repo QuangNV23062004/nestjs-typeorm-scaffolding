@@ -11,6 +11,7 @@ import helmet from 'helmet';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { join } from 'path/win32';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import csurf from 'csurf';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -30,6 +31,17 @@ async function bootstrap() {
   //Cookies from header
   app.use(cookieParser());
 
+  //CSRF Protection
+  app.use(
+    csurf({
+      cookie: {
+        httpOnly: true,
+        secure: configService.server.host !== 'http://localhost',
+        sameSite: 'strict',
+      },
+    }),
+  );
+
   //Security
   app.use(helmet());
 
@@ -39,6 +51,9 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
+
+  //set view engine
+  app.setViewEngine('ejs');
 
   //Validation Pipe for DTOs
   app.useGlobalPipes(

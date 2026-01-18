@@ -29,4 +29,13 @@ export const jwtValidation = {
     .default('7d')
     .description('JWT refresh token expiration time')
     .error(new Error('JWT_REFRESH_EXPIRES_IN is required')),
+  JWT_RESET_PASSWORD_SECRET: Joi.string()
+    .required()
+    .description('JWT reset password private secret key')
+    .required()
+    .error(new Error('JWT_RESET_PASSWORD_SECRET is required')),
+  JWT_RESET_PASSWORD_EXPIRES_IN: Joi.string()
+    .default('15m')
+    .description('JWT reset password token expiration time')
+    .error(new Error('JWT_RESET_PASSWORD_EXPIRES_IN is required')),
 };

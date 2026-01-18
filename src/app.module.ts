@@ -16,32 +16,47 @@ import {
 } from './interceptors';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { HttpExceptionFilter } from './filters';
+import { DatabaseModule } from './common/database/database.module';
+import { ResetPasswordTokenModule } from './modules/reset-password-token/reset-password-token.module';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 
 @Module({
   imports: [
     //config module
     TypedConfigModule,
     JwtModule,
-    //db module
-    TypeOrmModule.forRootAsync({
-      imports: [TypedConfigModule],
+    MailerModule.forRootAsync({
       inject: [TypedConfigService],
       useFactory: (configService: TypedConfigService) => ({
-        type: 'postgres',
-        host: configService.database.host,
-        port: configService.database.port,
-        username: configService.database.username,
-        password: configService.database.password,
-        database: configService.database.database,
-        entities: [__dirname + '/modules/**/*.entity{.ts,.js}'],
-        autoLoadEntities: true,
-        synchronize: configService.database.synchronize,
+        transport: {
+          host: configService.email.host,
+          port: configService.email.port,
+          secure: false, // true for 465, false for other ports
+          auth: {
+            user: configService.email.user,
+            pass: configService.email.pass,
+          },
+        },
+        defaults: {
+          from: '"No Reply" <noreply@example.com>',
+        },
+        template: {
+          dir: process.cwd() + '/src/modules/auth/templates',
+          adapter: new HandlebarsAdapter(),
+          options: {
+            strict: true,
+          },
+        },
       }),
     }),
+    //db module
+    DatabaseModule.forRoot(),
 
     //modules
     AccountModule,
     AuthModule,
+    ResetPasswordTokenModule,
   ],
   controllers: [AppController],
   providers: [

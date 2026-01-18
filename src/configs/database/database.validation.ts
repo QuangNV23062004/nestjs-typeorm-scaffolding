@@ -30,4 +30,6 @@ export const databaseValidation = {
     .description('Database name')
     .error(new Error('DB_NAME is required')),
   DB_SYNCHRONIZE: Joi.boolean().default(false),
+  DB_LOGGING: Joi.boolean().default(false),
+  DB_SSL: Joi.boolean().default(false),
 };

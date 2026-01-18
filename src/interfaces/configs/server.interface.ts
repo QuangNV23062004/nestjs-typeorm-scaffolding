@@ -3,4 +3,5 @@ export interface ServerConfig {
   port: number;
   prefix: string;
   version: string;
+  host: string;
 }

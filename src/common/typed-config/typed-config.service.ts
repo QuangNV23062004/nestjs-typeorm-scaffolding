@@ -3,13 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import { ServerConfig } from 'src/interfaces/configs/server.interface';
 import { Config } from 'src/interfaces/configs/config.interface';
 import { DatabaseConfig } from 'src/interfaces/configs/database.interface';
-import { JwtConfig } from 'src/interfaces/configs/jwt.interface';
+import { EmailConfig } from 'src/interfaces/configs/email.interface';
 import { serverValidation } from 'src/configs/server/server.validation';
 import { databaseValidation } from 'src/configs/database/database.validation';
 import { jwtValidation } from 'src/configs/jwt/jwt.validation';
 import { emailValidation } from 'src/configs/email/email.validation';
 import * as Joi from 'joi';
 import { clientValidation } from 'src/configs/client/client.validation';
+import { JwtConfig } from 'src/interfaces/configs';
 
 @Injectable()
 export class TypedConfigService {
@@ -25,6 +26,10 @@ export class TypedConfigService {
 
   get jwt(): JwtConfig {
     return this.configService.get('jwt', { infer: true });
+  }
+
+  get email(): EmailConfig {
+    return this.configService.get('email', { infer: true });
   }
 
   get client() {

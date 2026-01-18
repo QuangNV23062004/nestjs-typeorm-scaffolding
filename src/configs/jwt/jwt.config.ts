@@ -33,5 +33,10 @@ export const jwtConfig = registerAs(
       'PRIVATE',
     ),
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN as string,
+    resetPasswordKey: wrapPem(
+      process.env.JWT_RESET_PASSWORD_SECRET as string,
+      'PRIVATE',
+    ),
+    resetPasswordExpiresIn: process.env.JWT_RESET_PASSWORD_EXPIRES_IN as string,
   }),
 );
