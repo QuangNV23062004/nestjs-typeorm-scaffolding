@@ -6,21 +6,21 @@ import * as path from 'path';
 export class AuthTemplateService {
   constructor() {}
 
-  getResetPasswordEmailTemplate(): string {
+  async getResetPasswordEmailTemplate(): Promise<string> {
     const templatePath = path.join(
       __dirname,
-      '../templates/reset-password-email.template.ejs',
+      '../../../common/templates/auth/reset-password-email.template.ejs',
     );
-    const template = fs.readFileSync(templatePath, 'utf8');
+    const template = await fs.promises.readFile(templatePath, 'utf8');
     return template;
   }
 
-  getResetPasswordFormTemplate(): string {
+  async getResetPasswordFormTemplate(): Promise<string> {
     const templatePath = path.join(
       __dirname,
-      '../templates/reset-password-form.template.ejs',
+      '../../../common/templates/auth/reset-password-form.template.ejs',
     );
-    const template = fs.readFileSync(templatePath, 'utf8');
+    const template = await fs.promises.readFile(templatePath, 'utf8');
     return template;
   }
 }

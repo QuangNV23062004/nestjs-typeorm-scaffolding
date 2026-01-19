@@ -12,7 +12,6 @@ import { AuthPasswordService } from './services/auth-password.service';
 import { AuthEmailService } from './services/auth-email.service';
 import { AuthTemplateService } from './services/auth-template.service';
 import { MailerModule } from '@nestjs-modules/mailer';
-
 @Module({
   imports: [
     ResetPasswordTokenModule,

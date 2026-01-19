@@ -18,11 +18,14 @@ export class RolesGuard implements CanActivate {
     );
     if (!requiredRoles) return true;
 
-    const { user } = ctx.switchToHttp().getRequest();
-    if (!user?.role)
+    const request = ctx.switchToHttp().getRequest();
+    const accountInfo = request?.accountInfo;
+    if (!accountInfo?.role)
       throw new ForbiddenException('You do not have permission to access');
 
-    const roles = Array.isArray(user.role) ? user.role : [user.role];
+    const roles = Array.isArray(accountInfo.role)
+      ? accountInfo.role
+      : [accountInfo.role];
     if (roles.some((r) => requiredRoles.includes(r))) return true;
 
     throw new ForbiddenException('You do not have permission to access');

@@ -165,6 +165,14 @@ export class AccountService {
       account.role = updateAccountDto.role;
     }
 
+    if (updateAccountDto.status && accountInfo?.role !== Role.ADMIN) {
+      throw AccountException.INSUFFICIENT_PERMISSION;
+    }
+
+    if (updateAccountDto.status && updateAccountDto.status !== account.status) {
+      account.status = updateAccountDto.status;
+    }
+
     return this.accountRepository.Update(account);
   }
 
@@ -214,7 +222,7 @@ export class AccountService {
     }
     if (createAdmin) {
       const { hash, salt } =
-        await this.authPasswordService.hashPassword('admin123');
+        await this.authPasswordService.hashPassword('123456');
 
       const adminAccount: Partial<AccountEntity> = {
         email: 'admin@example.com',

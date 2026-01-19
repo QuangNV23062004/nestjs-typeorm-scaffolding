@@ -9,6 +9,7 @@ import { AccountModule } from './modules/account/account.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AuthGuard } from './guards/auth.guard';
+import { RolesGuard } from './guards/role.guard';
 import {
   ResponseTransformInterceptor,
   LoggingInterceptor,
@@ -20,6 +21,9 @@ import { DatabaseModule } from './common/database/database.module';
 import { ResetPasswordTokenModule } from './modules/reset-password-token/reset-password-token.module';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { ErrorLogsModule } from './modules/error-logs/error-logs.module';
+import { ErrorLoggingInterceptor } from './interceptors/error-logging.interceptor';
+import { ErrorLogRepository } from './modules/error-logs/error-logs.repository';
 
 @Module({
   imports: [
@@ -56,6 +60,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
     //modules
     AccountModule,
     AuthModule,
+    ErrorLogsModule,
     ResetPasswordTokenModule,
   ],
   controllers: [AppController],
@@ -63,6 +68,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
     AppService,
     TypedConfigService,
     JwtService,
+
     // Exception Filters
     {
       provide: APP_FILTER,
@@ -73,6 +79,10 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
       provide: APP_GUARD,
       useClass: AuthGuard,
     },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
     // Interceptors
     {
       provide: APP_INTERCEPTOR,
@@ -81,6 +91,13 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
     {
       provide: APP_INTERCEPTOR,
       useClass: ResponseTransformInterceptor,
+    },
+    // Fix: Use useFactory to pass dependencies (ErrorLogRepository and the array of statuses)
+    {
+      provide: APP_INTERCEPTOR,
+      useFactory: (errorLogRepo: ErrorLogRepository) =>
+        new ErrorLoggingInterceptor(errorLogRepo, [400, 401, 500]), // Configurable statuses
+      inject: [ErrorLogRepository],
     },
     {
       provide: APP_INTERCEPTOR,

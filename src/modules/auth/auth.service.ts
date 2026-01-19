@@ -99,73 +99,104 @@ export class AuthService {
     updatePasswordDto: UpdatePasswordDto,
     accountInfo?: AccountInfo,
   ): Promise<boolean> {
-    const account = await this.accountRepository.FindById(id, false);
+    const entityManager = await this.accountRepository.GetEntityManager();
 
-    if (!account) {
-      throw AuthException.ACCOUNT_NOT_FOUND;
-    }
-
-    const isOwner = accountInfo?.sub === id;
-
-    const isAdmin = accountInfo?.role === Role.ADMIN;
-    if (!isOwner && !isAdmin) {
-      throw AuthException.INSUFFICIENT_PERMISSION;
-    }
-
-    await this.authPasswordService.comparePasswords(
-      updatePasswordDto.currentPassword,
-      account.passwordHash,
-    );
-
-    const { salt, hash } = await this.authPasswordService.hashPassword(
+    await this.authPasswordService.isPasswordStrong(
       updatePasswordDto.newPassword,
     );
+    return await entityManager.transaction(
+      async (transactionalEntityManager) => {
+        const account = await this.accountRepository.FindById(
+          id,
+          false,
+          transactionalEntityManager,
+        );
 
-    account.passwordSalt = salt;
-    account.passwordHash = hash;
+        if (!account) {
+          throw AuthException.ACCOUNT_NOT_FOUND;
+        }
 
-    return this.accountRepository.Update(account) != null;
+        const isOwner = accountInfo?.sub === id;
+
+        const isAdmin = accountInfo?.role === Role.ADMIN;
+        if (!isOwner && !isAdmin) {
+          throw AuthException.INSUFFICIENT_PERMISSION;
+        }
+
+        if (!isAdmin) {
+          await this.authPasswordService.comparePasswords(
+            updatePasswordDto.currentPassword,
+            account.passwordHash,
+          );
+        }
+
+        const { salt, hash } = await this.authPasswordService.hashPassword(
+          updatePasswordDto.newPassword,
+        );
+
+        account.passwordSalt = salt;
+        account.passwordHash = hash;
+
+        return (
+          this.accountRepository.Update(account, transactionalEntityManager) !=
+          null
+        );
+      },
+    );
   }
 
   async ResetPassword(email: string): Promise<void> {
-    const account = await this.accountRepository.FindByEmail(email, false);
-    if (!account) {
-      throw AuthException.ACCOUNT_NOT_FOUND;
-    }
+    const entityManager = await this.accountRepository.GetEntityManager();
+    return await entityManager.transaction(
+      async (transactionalEntityManager) => {
+        const account = await this.accountRepository.FindByEmail(
+          email,
+          false,
+          transactionalEntityManager,
+        );
+        if (!account) {
+          throw AuthException.ACCOUNT_NOT_FOUND;
+        }
 
-    const payload = {
-      sub: account.id,
-    };
+        const payload = {
+          sub: account.id,
+        };
 
-    const resetToken =
-      await this.authJwtService.createResetPasswordToken(payload);
+        const resetToken =
+          await this.authJwtService.createResetPasswordToken(payload);
 
-    const hash = await this.authPasswordService.hashToken(resetToken);
+        const hash = await this.authPasswordService.hashToken(resetToken);
 
-    const resetPasswordTokenEntity = new ResetPasswordTokenEntity();
-    resetPasswordTokenEntity.accountId = account.id;
-    resetPasswordTokenEntity.tokenHash = hash;
-    resetPasswordTokenEntity.expiresAt = new Date(
-      Date.now() +
-        this.authJwtService.parseExpiresIn(
-          this.typedConfigService.jwt.resetPasswordExpiresIn,
-        ),
-    );
-    resetPasswordTokenEntity.usable = true;
+        const resetPasswordTokenEntity = new ResetPasswordTokenEntity();
+        resetPasswordTokenEntity.accountId = account.id;
+        resetPasswordTokenEntity.tokenHash = hash;
+        resetPasswordTokenEntity.expiresAt = new Date(
+          Date.now() +
+            this.authJwtService.parseExpiresIn(
+              this.typedConfigService.jwt.resetPasswordExpiresIn,
+            ),
+        );
+        resetPasswordTokenEntity.usable = true;
 
-    await this.resetPasswordTokenRepository.BatchUpdate(
-      { accountId: account.id, usable: true },
-      { usable: false },
-    );
+        await this.resetPasswordTokenRepository.BatchUpdate(
+          { accountId: account.id, usable: true },
+          { usable: false },
+        );
 
-    await this.resetPasswordTokenRepository.Create(resetPasswordTokenEntity);
+        await this.resetPasswordTokenRepository.Create(
+          resetPasswordTokenEntity,
+          transactionalEntityManager,
+        );
 
-    const template = this.authTemplateService.getResetPasswordEmailTemplate();
+        const template =
+          await this.authTemplateService.getResetPasswordEmailTemplate();
 
-    await this.authEmailService.sendResetPasswordEmail(
-      email,
-      template,
-      resetToken,
+        await this.authEmailService.sendResetPasswordEmail(
+          email,
+          template,
+          resetToken,
+        );
+      },
     );
   }
 
@@ -196,9 +227,13 @@ export class AuthService {
       throw AuthException.ACCOUNT_NOT_FOUND;
     }
 
-    const template = this.authTemplateService.getResetPasswordFormTemplate();
+    const template =
+      await this.authTemplateService.getResetPasswordFormTemplate();
     const rendered = ejs.render(template, {
       token,
+      clientUrl:
+        this.typedConfigService.client.url1 ||
+        this.typedConfigService.client.url2,
       err: null,
     });
 
@@ -208,52 +243,71 @@ export class AuthService {
   async VerifyResetPasswordToken(
     verifyResetPasswordTokenDto: VerifyResetPasswordTokenDto,
   ): Promise<boolean> {
-    const { token, password, confirmPassword } = verifyResetPasswordTokenDto;
-    if (!token) {
-      throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
-    }
-    const decoded = await this.authJwtService.verifyResetPasswordToken(token);
+    const entityManager = await this.accountRepository.GetEntityManager();
+    return await entityManager.transaction(
+      async (transactionalEntityManager) => {
+        const { token, password, confirmPassword } =
+          verifyResetPasswordTokenDto;
 
-    if (!decoded) {
-      throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
-    }
+        if (password !== confirmPassword) {
+          throw AuthException.PASSWORD_NOT_MATCH;
+        }
 
-    const resetPasswordTokens =
-      await this.resetPasswordTokenRepository.FindActiveTokenByAccountId(
-        decoded.sub,
-      );
+        await this.authPasswordService.isPasswordStrong(password);
 
-    if (!resetPasswordTokens) {
-      throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
-    }
+        if (!token) {
+          throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
+        }
+        const decoded =
+          await this.authJwtService.verifyResetPasswordToken(token);
 
-    //no need to validate time because jwt verify already do that
-    await this.authJwtService.compareResetTokenHash(
-      token,
-      resetPasswordTokens.tokenHash,
+        if (!decoded) {
+          throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
+        }
+
+        const resetPasswordTokens =
+          await this.resetPasswordTokenRepository.FindActiveTokenByAccountId(
+            decoded.sub,
+            transactionalEntityManager,
+          );
+
+        if (!resetPasswordTokens) {
+          throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
+        }
+
+        //no need to validate time because jwt verify already do that
+        await this.authJwtService.compareResetTokenHash(
+          token,
+          resetPasswordTokens.tokenHash,
+        );
+
+        const account = await this.accountRepository.FindById(
+          decoded.sub,
+          false,
+        );
+        if (!account) {
+          throw AuthException.ACCOUNT_NOT_FOUND;
+        }
+
+        const { salt, hash } =
+          await this.authPasswordService.hashPassword(password);
+
+        account.passwordSalt = salt;
+        account.passwordHash = hash;
+
+        await this.accountRepository.Update(
+          account,
+          transactionalEntityManager,
+        );
+
+        //invalidate the used token
+        resetPasswordTokens.usable = false;
+        const result = await this.resetPasswordTokenRepository.Update(
+          resetPasswordTokens,
+          transactionalEntityManager,
+        );
+        return result != null;
+      },
     );
-
-    if (password !== confirmPassword) {
-      throw AuthException.PASSWORD_NOT_MATCH;
-    }
-
-    const account = await this.accountRepository.FindById(decoded.sub, false);
-    if (!account) {
-      throw AuthException.ACCOUNT_NOT_FOUND;
-    }
-
-    const { salt, hash } =
-      await this.authPasswordService.hashPassword(password);
-
-    account.passwordSalt = salt;
-    account.passwordHash = hash;
-
-    await this.accountRepository.Update(account);
-
-    //invalidate the used token
-    resetPasswordTokens.usable = false;
-    const result =
-      await this.resetPasswordTokenRepository.Update(resetPasswordTokens);
-    return result != null;
   }
 }

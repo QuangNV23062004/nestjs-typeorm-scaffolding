@@ -11,7 +11,6 @@ import helmet from 'helmet';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { join } from 'path/win32';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import csurf from 'csurf';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -23,6 +22,14 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
+  // Serve static assets (CSS, JS, images) from templates folder
+  app.useStaticAssets(join(__dirname, 'common', 'templates'), {
+    prefix: '/templates/',
+  });
+
+  // Set base views directory for EJS templates
+  app.setBaseViewsDir(join(__dirname, 'common', 'templates'));
+
   //API Prefix and Version
   const apiPrefix = configService.server.prefix.trim();
   const apiVersion = configService.server.version.trim();
@@ -31,19 +38,36 @@ async function bootstrap() {
   //Cookies from header
   app.use(cookieParser());
 
-  //CSRF Protection
+  //Security
   app.use(
-    csurf({
-      cookie: {
-        httpOnly: true,
-        secure: configService.server.host !== 'http://localhost',
-        sameSite: 'strict',
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            'https://cdn.tailwindcss.com',
+            'https://cdnjs.cloudflare.com',
+            'https://cdn.jsdelivr.net',
+          ],
+          styleSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            'https://cdn.tailwindcss.com',
+            'https://cdnjs.cloudflare.com',
+            'https://cdn.jsdelivr.net',
+          ],
+          fontSrc: [
+            "'self'",
+            'https://cdnjs.cloudflare.com',
+            'https://cdn.jsdelivr.net',
+            'data:',
+          ],
+        },
       },
     }),
   );
-
-  //Security
-  app.use(helmet());
 
   //CORS
   app.enableCors({

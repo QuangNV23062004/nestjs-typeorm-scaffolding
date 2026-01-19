@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
+import { Public } from './decorators';
 
 @Controller()
 export class AppController {
@@ -10,17 +11,18 @@ export class AppController {
     return this.appService.getHello();
   }
 
+  @Public()
   @Get('health-check')
   healthCheck() {
     return { status: 'OK' };
   }
 
-  @Get('test-time-out')
-  test() {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        resolve('test');
-      }, 40000);
-    });
-  }
+  // @Get('test-time-out')
+  // test() {
+  //   return new Promise((resolve, reject) => {
+  //     setTimeout(() => {
+  //       resolve('test');
+  //     }, 40000);
+  //   });
+  // }
 }

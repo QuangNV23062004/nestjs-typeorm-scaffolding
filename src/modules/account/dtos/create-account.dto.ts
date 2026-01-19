@@ -1,6 +1,7 @@
 import { IsEmail, IsEnum, IsOptional, IsString } from 'class-validator';
 import { Role } from '../enums/role.enum';
 import { ApiProperty } from '@nestjs/swagger';
+import { Status } from '../enums/account-status.enum';
 
 export class CreateAccountDto {
   @ApiProperty({ example: 'user@example.com', description: 'Account email' })
@@ -19,4 +20,13 @@ export class CreateAccountDto {
   })
   @IsEnum(Role)
   role: Role;
+
+  @IsOptional()
+  @ApiProperty({
+    enum: Status,
+    example: Status.ACTIVE,
+    description: 'Account status',
+  })
+  @IsEnum(Status)
+  status: Status = Status.ACTIVE;
 }

@@ -30,10 +30,11 @@ import {
 
 @ApiTags('Account')
 @ApiBearerAuth()
-@Controller('account')
+@Controller('accounts')
 export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 
+  @Roles(Role.ADMIN, Role.MANAGER)
   @ApiOperation({ summary: 'Find Account by Email' })
   @ApiQuery({
     name: 'email',
@@ -47,6 +48,7 @@ export class AccountController {
     return await this.accountService.FindByEmail(email);
   }
 
+  @Roles(Role.ADMIN, Role.MANAGER)
   @ApiOperation({ summary: 'Get All Accounts (List)' })
   @ApiQuery({
     name: 'includeDeleted',
@@ -69,6 +71,7 @@ export class AccountController {
     );
   }
 
+  @Roles(Role.ADMIN, Role.MANAGER)
   @ApiOperation({ summary: 'Get All Accounts (Paginated)' })
   @ApiQuery({
     name: 'includeDeleted',
@@ -84,13 +87,14 @@ export class AccountController {
     @Query('includeDeleted') includeDeleted?: boolean,
     @Query() filterAccountDto?: FilterAccountDto,
   ) {
-    return await this.accountService.FindAll(
+    return await this.accountService.FindPaginated(
       request.accountInfo,
       filterAccountDto,
       includeDeleted,
     );
   }
 
+  @Roles(Role.ADMIN, Role.MANAGER)
   @ApiOperation({ summary: 'Find Account by ID' })
   @ApiParam({ name: 'id', required: true, description: 'Account ID' })
   @ApiQuery({
@@ -115,6 +119,7 @@ export class AccountController {
     );
   }
 
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Create new Account' })
   @ApiBody({ type: CreateAccountDto })
   @ApiResponse({ status: 201, description: 'Account created' })

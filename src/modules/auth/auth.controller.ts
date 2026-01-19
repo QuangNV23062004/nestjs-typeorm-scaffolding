@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Inject,
   Param,
   Patch,
@@ -29,6 +30,8 @@ import { IAuthenticatedRequest } from 'src/interfaces/request';
 import { UpdatePasswordDto } from './dtos/update-password.dto';
 import { VerifyResetPasswordTokenDto } from './dtos/verify-reset-password-token.dto';
 import { ResetPasswordDto } from './dtos/reset-password.dto';
+import { Roles } from 'src/decorators/roles.decorator';
+import { Role } from '../account/enums/role.enum';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -101,10 +104,8 @@ export class AuthController {
     @Body() resetPasswordDto: ResetPasswordDto,
     @Res() res: Response,
   ) {
-    const resetTemplate = await this.authService.ResetPassword(
-      resetPasswordDto.email,
-    );
-    res.send(resetTemplate);
+    await this.authService.ResetPassword(resetPasswordDto.email);
+    res.status(200).json({ message: 'Verification email has been sent' });
   }
 
   @Public()
@@ -121,11 +122,12 @@ export class AuthController {
   @Post('verify-reset-password')
   async VerifyResetPassword(
     @Body() verifyResetPasswordTokenDto: VerifyResetPasswordTokenDto,
+    @Res() res: Response,
   ) {
     const resetToken = await this.authService.VerifyResetPasswordToken(
       verifyResetPasswordTokenDto,
     );
-    return { resetToken };
+    res.status(200).json({ resetToken });
   }
 
   //could be handle in frontend if wanted
@@ -150,6 +152,23 @@ export class AuthController {
     @Res() res: Response,
   ) {
     const resetTemplate = await this.authService.GetResetPasswordForm(token);
-    return res.send(resetTemplate);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(resetTemplate);
+  }
+
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'GetInfo of Authenticated User',
+    description: 'Retrieve information of the authenticated user',
+  })
+  @ApiResponse({ status: 200, description: 'User info retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @Get('me')
+  async GetAccountInfo(@Req() request: IAuthenticatedRequest) {
+    if (!request.accountInfo || !request.accountInfo.sub) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+
+    return await this.authService.GetAccountInfo(request.accountInfo.sub);
   }
 }

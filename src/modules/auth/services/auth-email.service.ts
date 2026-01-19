@@ -20,11 +20,11 @@ export class AuthEmailService {
   ): Promise<void> {
     const host =
       this.typedConfigService.server.host === 'http://localhost'
-        ? `${this.typedConfigService.server.host}:${this.typedConfigService.server.port}`
-        : this.typedConfigService.server.host;
+        ? `${this.typedConfigService.server.host}:${this.typedConfigService.server.port}/${this.typedConfigService.server.prefix}/${this.typedConfigService.server.version}`
+        : `${this.typedConfigService.server.host}/${this.typedConfigService.server.prefix}/${this.typedConfigService.server.version}`;
 
     const rendered = ejs.render(template, {
-      resetUrl: `${host}/api/auth/reset-password/${token}`,
+      resetUrl: `${host}/auth/reset-password/${token}`,
     });
 
     await this.mailerService

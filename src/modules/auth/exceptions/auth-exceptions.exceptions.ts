@@ -20,7 +20,10 @@ export const AuthException = {
     HttpStatus.FORBIDDEN,
   ),
 
-  INVALID_PASSWORD: new HttpException('Invalid password', HttpStatus.FORBIDDEN),
+  INVALID_PASSWORD: new HttpException(
+    'Invalid password',
+    HttpStatus.BAD_REQUEST,
+  ),
 
   PASSWORD_NOT_MATCH: new HttpException(
     'Password not match',
@@ -63,7 +66,7 @@ export const AuthException = {
   ),
 
   PASSWORD_NOT_STRONG_ENOUGH: new HttpException(
-    'Password is not strong enough',
+    'Password is not strong enough: it must be at least 8 characters long it must include uppercase letters, lowercase letters,numbers, and special characters.',
     HttpStatus.BAD_REQUEST,
   ),
 };
