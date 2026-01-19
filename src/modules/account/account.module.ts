@@ -10,5 +10,6 @@ import { AuthPasswordService } from '../auth/services/auth-password.service';
   imports: [TypeOrmModule.forFeature([AccountEntity])],
   controllers: [AccountController],
   providers: [AccountService, AccountRepository, AuthPasswordService],
+  exports: [AccountService, AccountRepository, AuthPasswordService],
 })
 export class AccountModule {}

@@ -43,7 +43,7 @@ export class AccountController {
   })
   @ApiResponse({ status: 200, description: 'Account found' })
   @ApiResponse({ status: 404, description: 'Account not found' })
-  @Get('by-email')
+  @Get('email')
   async FindByEmail(@Query('email') email: string) {
     return await this.accountService.FindByEmail(email);
   }
@@ -94,7 +94,6 @@ export class AccountController {
     );
   }
 
-  @Roles(Role.ADMIN, Role.MANAGER)
   @ApiOperation({ summary: 'Find Account by ID' })
   @ApiParam({ name: 'id', required: true, description: 'Account ID' })
   @ApiQuery({
@@ -130,12 +129,12 @@ export class AccountController {
     return await this.accountService.Create(createAccountDto);
   }
 
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Update Account' })
   @ApiParam({ name: 'id', required: true, description: 'Account ID to update' })
   @ApiBody({ type: UpdateAccountDto })
   @ApiResponse({ status: 200, description: 'Account updated' })
   @ApiResponse({ status: 404, description: 'Account not found' })
-  @Roles(Role.ADMIN, Role.ANNOTATOR, Role.MANAGER, Role.REVIEWER)
   @Patch(':id')
   async Update(
     @Param('id') id: string,

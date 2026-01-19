@@ -16,7 +16,7 @@ export const AuthException = {
     HttpStatus.NOT_FOUND,
   ),
   ACCOUNT_INACTIVE: new HttpException(
-    'Account is inactive',
+    'Account is inactive, please contact administrator',
     HttpStatus.FORBIDDEN,
   ),
 

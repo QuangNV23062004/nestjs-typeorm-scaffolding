@@ -16,9 +16,18 @@ import { AuthPasswordService } from '../auth/services/auth-password.service';
 export class AccountService {
   constructor(
     private readonly accountRepository: AccountRepository,
-
     private readonly authPasswordService: AuthPasswordService,
   ) {}
+
+  private getAllowedRoles(accountInfo?: AccountInfo): Role[] {
+    if (accountInfo?.role === Role.ADMIN) {
+      return [Role.ADMIN, Role.MANAGER, Role.ANNOTATOR, Role.REVIEWER];
+    } else if (accountInfo?.role === Role.MANAGER) {
+      return [Role.ANNOTATOR, Role.REVIEWER];
+    } else {
+      return [];
+    }
+  }
 
   private getIncludeDeleted(
     accountInfo?: AccountInfo,
@@ -36,7 +45,11 @@ export class AccountService {
   }
 
   private checkPermission(id: string, accountInfo?: AccountInfo) {
-    if (accountInfo?.sub !== id && accountInfo?.role !== Role.ADMIN) {
+    if (
+      accountInfo?.sub !== id &&
+      accountInfo?.role !== Role.ADMIN &&
+      accountInfo?.role !== Role.MANAGER
+    ) {
       throw AccountException.INSUFFICIENT_PERMISSION;
     }
   }
@@ -60,6 +73,10 @@ export class AccountService {
       throw AccountException.ACCOUNT_NOT_FOUND;
     }
 
+    if (accountInfo?.role !== Role.ADMIN && account.role === Role.ADMIN) {
+      throw AccountException.ACCOUNT_NOT_FOUND;
+    }
+
     return account;
   }
 
@@ -73,7 +90,13 @@ export class AccountService {
       includeDeleted,
     );
 
-    return this.accountRepository.FindAll(safeIncludedDeleted, query);
+    const role = this.getAllowedRoles(accountInfo);
+    return this.accountRepository.FindAll(
+      safeIncludedDeleted,
+      accountInfo?.sub as string,
+      role,
+      query,
+    );
   }
 
   async FindPaginated(
@@ -86,7 +109,13 @@ export class AccountService {
       includeDeleted,
     );
 
-    return this.accountRepository.FindPaginated(safeIncludedDeleted, query);
+    const role = this.getAllowedRoles(accountInfo);
+    return this.accountRepository.FindPaginated(
+      safeIncludedDeleted,
+      accountInfo?.sub as string,
+      role,
+      query,
+    );
   }
 
   async FindById(
@@ -103,6 +132,11 @@ export class AccountService {
       id,
       safeIncludedDeleted,
     );
+
+    if (accountInfo?.role !== Role.ADMIN && account?.role === Role.ADMIN) {
+      throw AccountException.ACCOUNT_NOT_FOUND;
+    }
+
     if (!account) {
       throw AccountException.ACCOUNT_NOT_FOUND;
     }
@@ -146,6 +180,11 @@ export class AccountService {
       throw AccountException.ACCOUNT_NOT_FOUND;
     }
 
+    // Prevent non-admins from updating admin accounts
+    if (accountInfo?.role !== Role.ADMIN && account.role === Role.ADMIN) {
+      throw AccountException.INSUFFICIENT_PERMISSION;
+    }
+
     if (updateAccountDto.email && updateAccountDto.email !== account.email) {
       account.email = updateAccountDto.email;
     }
@@ -161,11 +200,19 @@ export class AccountService {
       throw AccountException.INSUFFICIENT_PERMISSION;
     }
 
-    if (updateAccountDto.role && updateAccountDto.role !== account.role) {
+    if (
+      updateAccountDto.role &&
+      updateAccountDto.role !== account.role &&
+      updateAccountDto.role !== account.role
+    ) {
       account.role = updateAccountDto.role;
     }
 
-    if (updateAccountDto.status && accountInfo?.role !== Role.ADMIN) {
+    if (
+      updateAccountDto.status &&
+      updateAccountDto.status !== account.status &&
+      accountInfo?.role !== Role.ADMIN
+    ) {
       throw AccountException.INSUFFICIENT_PERMISSION;
     }
 

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { HttpStatus, Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -24,6 +24,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { ErrorLogsModule } from './modules/error-logs/error-logs.module';
 import { ErrorLoggingInterceptor } from './interceptors/error-logging.interceptor';
 import { ErrorLogRepository } from './modules/error-logs/error-logs.repository';
+import { AccountRepository } from './modules/account/account.repository';
 
 @Module({
   imports: [
@@ -96,7 +97,11 @@ import { ErrorLogRepository } from './modules/error-logs/error-logs.repository';
     {
       provide: APP_INTERCEPTOR,
       useFactory: (errorLogRepo: ErrorLogRepository) =>
-        new ErrorLoggingInterceptor(errorLogRepo, [400, 401, 500]), // Configurable statuses
+        new ErrorLoggingInterceptor(errorLogRepo, [
+          HttpStatus.UNAUTHORIZED,
+          HttpStatus.FORBIDDEN,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        ]), // Configurable statuses
       inject: [ErrorLogRepository],
     },
     {

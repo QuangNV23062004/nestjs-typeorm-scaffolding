@@ -6,6 +6,7 @@ import { FindOptionsWhere } from 'typeorm/find-options/FindOptionsWhere';
 import { FilterAccountDto } from './dtos/filter-account.dto';
 import { EntityManager } from 'typeorm/entity-manager/EntityManager';
 import { PaginationResultDto } from 'src/common/pagination/pagination-result.dto';
+import { Role } from './enums/role.enum';
 
 export class AccountRepository {
   constructor(
@@ -52,12 +53,17 @@ export class AccountRepository {
   //ignore page & limit
   async FindAll(
     includeDeleted: boolean,
+    excludeId: string,
+    role: Role[],
     query?: FilterAccountDto,
     entityManager?: EntityManager,
   ): Promise<AccountEntity[]> {
     const repository = await this.GetRepository(entityManager);
 
-    const qb = repository.createQueryBuilder('account');
+    const qb = repository
+      .createQueryBuilder('account')
+      .where('account.id != :excludeId', { excludeId })
+      .andWhere('account.role IN (:...role)', { role });
 
     if (query?.search && query?.searchBy) {
       const searchField = `account.${query.searchBy}`;
@@ -79,12 +85,17 @@ export class AccountRepository {
 
   async FindPaginated(
     includeDeleted: boolean,
+    excludeId: string,
+    role: Role[],
     query?: FilterAccountDto,
     entityManager?: EntityManager,
   ): Promise<PaginationResultDto<AccountEntity>> {
     const repository = await this.GetRepository(entityManager);
 
-    const qb = repository.createQueryBuilder('account');
+    const qb = repository
+      .createQueryBuilder('account')
+      .where('account.id != :excludeId', { excludeId })
+      .andWhere('account.role IN (:...role)', { role });
 
     if (query?.search && query?.searchBy) {
       const searchField = `account.${query.searchBy}`;

@@ -12,7 +12,7 @@ export const AccountException = {
   ),
 
   INSUFFICIENT_PERMISSION: new HttpException(
-    'You do not have sufficient permission to perform actions in this lists: update roles, delete other people account',
+    'You do not have sufficient permission to perform actions in this lists: update roles, statuses, delete other people account',
     HttpStatus.FORBIDDEN,
   ),
 

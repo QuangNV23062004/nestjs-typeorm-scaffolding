@@ -130,6 +130,10 @@ export class AuthService {
           );
         }
 
+        if ((account.status = AccountStatus.NEED_CHANGE_PASSWORD)) {
+          account.status = AccountStatus.ACTIVE;
+        }
+
         const { salt, hash } = await this.authPasswordService.hashPassword(
           updatePasswordDto.newPassword,
         );
