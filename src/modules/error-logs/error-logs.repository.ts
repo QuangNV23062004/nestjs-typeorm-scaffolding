@@ -21,6 +21,7 @@ export class ErrorLogRepository {
     body: Record<string, any>,
     accountInfo: Record<string, any>,
     message: string,
+    traceId?: string,
   ): Promise<void> {
     const omitedBody = omit(body, ['passwordHash', 'password', 'token']);
     const log = await this.errorLogRepository.create({
@@ -32,6 +33,7 @@ export class ErrorLogRepository {
       body: omitedBody,
       accountInfo,
       message,
+      traceId: traceId ?? null,
     });
 
     // Save asynchronously without awaiting to avoid blocking

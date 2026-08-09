@@ -7,33 +7,28 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
+import { logMeta } from '../common/context/tracing.context';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger(LoggingInterceptor.name);
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
-    const { method, url, ip } = request;
-    const userAgent = request.get('user-agent') || '';
     const startTime = Date.now();
 
+    // method/url/ip/userAgent come from logMeta() via the request context store,
+    // so these lines carry the same fields as @Tracing() logs and join on trace=.
     return next.handle().pipe(
       tap({
         next: () => {
-          const response = context.switchToHttp().getResponse();
-          const { statusCode } = response;
-          const duration = Date.now() - startTime;
-
+          const { statusCode } = context.switchToHttp().getResponse();
           this.logger.log(
-            `${method} ${url} ${statusCode} - ${duration}ms - ${ip} - ${userAgent}`,
+            `${statusCode} ${Date.now() - startTime}ms ${logMeta()}`,
           );
         },
         error: (error) => {
-          const duration = Date.now() - startTime;
-
           this.logger.error(
-            `${method} ${url} ${error.status || 500} - ${duration}ms - ${ip} - ${userAgent} - ${error.message}`,
+            `${error.status || 500} ${Date.now() - startTime}ms ${logMeta()} - ${error.message}`,
           );
         },
       }),

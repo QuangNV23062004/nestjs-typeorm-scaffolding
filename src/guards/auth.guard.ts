@@ -11,6 +11,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { Request } from 'express';
 import { extractAccessToken } from 'src/common/utils/extract-token.utils';
 import { AuthJwtService } from 'src/modules/auth/services/auth-jwt.service';
+import { getRequestContext } from 'src/common/context/request.context';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -38,6 +39,11 @@ export class AuthGuard implements CanActivate {
       const payload = await this.authJwtService.verifyAccessToken(token);
 
       request.accountInfo = payload;
+
+      // Enrich the request context so every log line after this point — and the
+      // error_logs rows — carry the account id without extra plumbing.
+      const ctx = getRequestContext();
+      if (ctx) ctx.accountId = payload?.sub ?? payload?.id;
     } catch (error) {
       console.log(error);
       throw new UnauthorizedException('Invalid or expired token');

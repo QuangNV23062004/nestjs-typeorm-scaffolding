@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
 import { ErrorLogRepository } from 'src/modules/error-logs/error-logs.repository';
+import { traceIds } from '../common/context/tracing.context';
 
 @Injectable()
 export class ErrorLoggingInterceptor implements NestInterceptor {
@@ -38,6 +39,7 @@ export class ErrorLoggingInterceptor implements NestInterceptor {
               request.body,
               request.accountInfo,
               response.message || '',
+              traceIds().traceId,
             );
           }
         },
@@ -52,8 +54,9 @@ export class ErrorLoggingInterceptor implements NestInterceptor {
               request.query,
               request.params,
               request.body,
-              error.message,
               request.accountInfo,
+              error.message,
+              traceIds().traceId,
             );
           }
         },

@@ -19,4 +19,7 @@ export class ErrorLogsEntity extends BaseEntity {
   accountInfo: Record<string, any>;
   @Column({ type: 'text', nullable: true })
   message: string;
+  /** W3C trace id (32 hex). Joins this row to its trace and to the app logs. */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  traceId: string | null;
 }

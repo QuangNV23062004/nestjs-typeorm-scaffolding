@@ -1,4 +1,10 @@
-import { HttpStatus, Module } from '@nestjs/common';
+import {
+  HttpStatus,
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+} from '@nestjs/common';
+import { RequestContextMiddleware } from './common/context/request-context.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -110,4 +116,9 @@ import { AccountRepository } from './modules/account/account.repository';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Must cover every route: guards and services read the store downstream.
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}

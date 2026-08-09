@@ -1,3 +1,6 @@
+// MUST stay first — starts the OTel SDK before any instrumented module loads.
+import './tracing';
+
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { TypedConfigService } from './common/typed-config/typed-config.service';
