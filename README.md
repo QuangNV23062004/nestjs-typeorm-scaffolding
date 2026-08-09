@@ -4,6 +4,19 @@
 
 # NestJS TypeORM Scaffolding
 
+> **Branch: `master`** — the default TypeORM template.
+>
+> | Branch | ORM | Purpose |
+> | --- | --- | --- |
+> | `master` | TypeORM | This branch |
+> | `variant/prisma` | Prisma | Prisma variant |
+>
+> **These branches are parallel variants and are never merged into each other.**
+> Merging `variant/prisma` into `master` would delete the TypeORM template.
+>
+> Shared, ORM-agnostic work (guards, interceptors, config, tracing) lands here
+> first, then flows to `variant/prisma` with `git merge master`.
+
 A robust, production-ready NestJS starter template with TypeORM, pre-configured Authentication, Typed Configuration, and best practices baked in. Designed to save you days of setup time.
 
 ## 🚀 Features & Differentiators
