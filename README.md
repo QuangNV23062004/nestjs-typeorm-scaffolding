@@ -2,9 +2,27 @@
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
-# NestJS TypeORM Scaffolding
+# NestJS Prisma Scaffolding
 
-A robust, production-ready NestJS starter template with TypeORM, pre-configured Authentication, Typed Configuration, and best practices baked in. Designed to save you days of setup time.
+> **Branch: `variant/prisma`** — the Prisma variant of this scaffold.
+>
+> | Branch | ORM | Purpose |
+> | --- | --- | --- |
+> | `master` | TypeORM | Default template |
+> | `variant/prisma` | Prisma | This branch |
+>
+> **These branches are parallel variants and are never merged into each other.**
+> Merging this branch into `master` would delete the TypeORM template.
+>
+> Shared, ORM-agnostic work (guards, interceptors, config, tracing) lands on
+> `master` first, then flows here with `git merge master`. Never the reverse.
+>
+> Prisma specifics: models live beside the module that owns them
+> (`src/modules/<module>/<module>.prisma`); `prisma.config.ts` points `schema`
+> at `src/modules` and picks them all up recursively. Generator and datasource
+> are in `src/modules/base/base.prisma`. Migrations live in `prisma/`.
+
+A robust, production-ready NestJS starter template with Prisma, pre-configured Authentication, Typed Configuration, and best practices baked in. Designed to save you days of setup time.
 
 ## 🚀 Features & Differentiators
 
@@ -28,9 +46,10 @@ What makes this scaffolding different from the standard `nest new`?
   - **Global Validation Pipes** with whitelist and transformation enabled.
 
 - **💾 Database Ready**:
-  - **TypeORM** properly set up with Postgres.
-  - **Base Entity** pattern with common fields (UUID, dates).
-  - **Repository Pattern** abstraction.
+  - **Prisma** properly set up with Postgres (via the `@prisma/adapter-pg` driver adapter).
+  - **Models co-located per module** — `src/modules/<module>/<module>.prisma`, picked up recursively from `src/modules`.
+  - **Base fields** (UUID, dates, soft-delete flag) repeated per model; Prisma has no model inheritance.
+  - **Repository Pattern** abstraction — repositories are the module boundary, not the client.
   - **Pagination** utilities and DTOs built-in.
 
 - **💎 Code Quality & UX**:
