@@ -11,6 +11,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { Request } from 'express';
 import { extractAccessToken } from 'src/common/utils/extract-token.utils';
 import { AuthJwtService } from 'src/modules/auth/services/auth-jwt.service';
+import { getRequest } from 'src/common/context/execution-context.util';
 import { getRequestContext } from 'src/common/context/request.context';
 
 @Injectable()
@@ -29,7 +30,10 @@ export class AuthGuard implements CanActivate {
     if (isPublic) {
       return true;
     }
-    const request = context.switchToHttp().getRequest();
+    const request = getRequest(context);
+    if (!request) {
+      throw new UnauthorizedException('No request context available');
+    }
     const token = extractAccessToken(request);
     if (!token) {
       throw new UnauthorizedException('Access token not found');
