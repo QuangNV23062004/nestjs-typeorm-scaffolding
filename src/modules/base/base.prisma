@@ -5,9 +5,14 @@
 // Note: the connection URL is NOT declared here — Prisma 7 moved it to
 // prisma.config.ts (datasource.url) and the runtime client takes an adapter.
 
+// Output into node_modules/.prisma/client, which @prisma/client re-exports.
+// That makes the import specifier bare ("@prisma/client"), so it resolves the
+// same from src/ under ts-node and from dist/ after `nest build`. Emitting the
+// client into src/ does not survive the build: it is plain .js that tsc will
+// not compile and nest will not copy, so dist/ ends up without it.
 generator client {
   provider = "prisma-client-js"
-  output   = "../../generated/prisma"
+  output   = "../../../node_modules/.prisma/client"
 }
 
 datasource db {

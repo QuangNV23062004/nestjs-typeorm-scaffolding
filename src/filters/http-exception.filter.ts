@@ -6,7 +6,12 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import { GqlExceptionFilter } from '@nestjs/graphql';
+import {
+  getRequest,
+  getResponse,
+  isGraphQL,
+} from '../common/context/execution-context.util';
 
 export interface ApiErrorResponse {
   success: boolean;
@@ -20,14 +25,10 @@ export interface ApiErrorResponse {
 }
 
 @Catch()
-export class HttpExceptionFilter implements ExceptionFilter {
+export class HttpExceptionFilter implements ExceptionFilter, GqlExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
-
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Internal server error';
     let error: string | undefined;
@@ -51,6 +52,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
       );
     }
 
+    // GraphQL owns its { data, errors } envelope and there is no response to
+    // write to. Returning the exception hands it to Apollo to format; writing
+    // a REST-shaped body here would corrupt the response.
+    if (isGraphQL(host)) {
+      return exception instanceof HttpException
+        ? exception
+        : new HttpException({ statusCode, message, error }, statusCode);
+    }
+
+    const response = getResponse(host);
+    if (!response) return exception;
+
     const errorResponse: ApiErrorResponse = {
       success: false,
       error: {
@@ -59,7 +72,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ...(error && { error }),
       },
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: getRequest(host)?.url ?? '',
     };
 
     response.status(statusCode).json(errorResponse);

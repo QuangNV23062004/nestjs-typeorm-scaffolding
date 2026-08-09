@@ -7,6 +7,7 @@ import {
 import { RequestContextMiddleware } from './common/context/request-context.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AppResolver } from './app.resolver';
 
 import { TypedConfigModule } from './common/typed-config/typed-config.module';
 import { TypedConfigService } from './common/typed-config/typed-config.service';
@@ -30,6 +31,9 @@ import { ErrorLogsModule } from './modules/error-logs/error-logs.module';
 import { ErrorLoggingInterceptor } from './interceptors/error-logging.interceptor';
 import { ErrorLogRepository } from './modules/error-logs/error-logs.repository';
 import { AccountRepository } from './modules/account/account.repository';
+import { GraphQLModule } from '@nestjs/graphql';
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { UserModule } from './modules/user/user.module';
 
 @Module({
   imports: [
@@ -68,10 +72,21 @@ import { AccountRepository } from './modules/account/account.repository';
     AuthModule,
     ErrorLogsModule,
     ResetPasswordTokenModule,
+
+    //GraphQL module
+    GraphQLModule.forRoot<ApolloDriverConfig>({
+      driver: ApolloDriver,
+      autoSchemaFile: true,
+      debug: true,
+      playground: true,
+    }),
+
+    UserModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
+    AppResolver,
     TypedConfigService,
     JwtService,
 

@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { plainToInstance } from 'class-transformer';
 import { PrismaService } from 'src/common/database/prisma.service';
-import { Prisma } from 'src/generated/prisma';
-import { ResetPasswordTokenEntity } from './reset-password-token.entity';
+import { Prisma, ResetPasswordToken } from '@prisma/client';
 
 @Injectable()
 export class ResetPasswordTokenRepository {
@@ -12,10 +10,6 @@ export class ResetPasswordTokenRepository {
     return tx ?? this.prisma;
   }
 
-  private toEntity(row: unknown): ResetPasswordTokenEntity {
-    return plainToInstance(ResetPasswordTokenEntity, row);
-  }
-
   async Transaction<T>(
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
@@ -23,29 +17,20 @@ export class ResetPasswordTokenRepository {
   }
 
   async Create(
-    token: Partial<ResetPasswordTokenEntity>,
+    token: Prisma.ResetPasswordTokenCreateInput,
     tx?: Prisma.TransactionClient,
-  ): Promise<ResetPasswordTokenEntity> {
-    const created = await this.db(tx).resetPasswordToken.create({
-      data: {
-        accountId: token.accountId as string,
-        tokenHash: token.tokenHash as string,
-        expiresAt: token.expiresAt as Date,
-        ...(token.usable !== undefined ? { usable: token.usable } : {}),
-      },
-    });
-    return this.toEntity(created);
+  ): Promise<ResetPasswordToken> {
+    return this.db(tx).resetPasswordToken.create({ data: token });
   }
 
   async FindById(
     id: string,
     includeDeleted: boolean,
     tx?: Prisma.TransactionClient,
-  ): Promise<ResetPasswordTokenEntity | null> {
-    const row = await this.db(tx).resetPasswordToken.findFirst({
+  ): Promise<ResetPasswordToken | null> {
+    return this.db(tx).resetPasswordToken.findFirst({
       where: includeDeleted ? { id } : { id, isDeleted: false },
     });
-    return row ? this.toEntity(row) : null;
   }
 
   async SoftDelete(id: string, tx?: Prisma.TransactionClient): Promise<boolean> {
@@ -71,20 +56,14 @@ export class ResetPasswordTokenRepository {
   }
 
   async Update(
-    token: ResetPasswordTokenEntity,
+    id: string,
+    data: Prisma.ResetPasswordTokenUpdateInput,
     tx?: Prisma.TransactionClient,
-  ): Promise<ResetPasswordTokenEntity> {
-    const updated = await this.db(tx).resetPasswordToken.update({
-      where: { id: token.id },
-      data: {
-        accountId: token.accountId,
-        tokenHash: token.tokenHash,
-        expiresAt: token.expiresAt,
-        usable: token.usable,
-        isDeleted: token.isDeleted,
-      },
+  ): Promise<ResetPasswordToken> {
+    return this.db(tx).resetPasswordToken.update({
+      where: { id },
+      data,
     });
-    return this.toEntity(updated);
   }
 
   async BatchUpdate(
@@ -101,10 +80,9 @@ export class ResetPasswordTokenRepository {
   async FindActiveTokenByAccountId(
     accountId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<ResetPasswordTokenEntity | null> {
-    const row = await this.db(tx).resetPasswordToken.findFirst({
+  ): Promise<ResetPasswordToken | null> {
+    return this.db(tx).resetPasswordToken.findFirst({
       where: { accountId, usable: true, isDeleted: false },
     });
-    return row ? this.toEntity(row) : null;
   }
 }

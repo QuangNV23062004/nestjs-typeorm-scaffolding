@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from 'src/generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { buildDatabaseUrl } from './database-url';
 
 /**
@@ -27,6 +27,22 @@ export class PrismaService
   constructor() {
     super({
       adapter: new PrismaPg(buildDatabaseUrl()),
+
+      // Credential columns never leave the database layer by default. This is
+      // enforced at the query, not at serialization: the fields are absent from
+      // the returned object AND from its type, so a leak through GraphQL, a log
+      // line, or an error_logs row is a compile error rather than an incident.
+      //
+      // The two call sites that genuinely need them (login, password change)
+      // opt back in explicitly via `omit: { passwordHash: false }` — grep
+      // "WithCredentials" to find them.
+      omit: {
+        account: {
+          passwordHash: true,
+          passwordSalt: true,
+        },
+      },
+
       log:
         process.env.DB_LOGGING === 'true'
           ? ['query', 'warn', 'error']

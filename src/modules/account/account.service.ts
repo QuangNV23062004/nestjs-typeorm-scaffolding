@@ -1,7 +1,8 @@
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { AccountRepository } from './account.repository';
 import { AccountInfo } from 'src/interfaces/request/authenticated-request.interface';
-import { AccountEntity } from './account.entity';
+import { Prisma } from '@prisma/client';
+import { SafeAccount } from './account.repository';
 import { Role } from './enums/role.enum';
 import { FilterAccountDto } from './dtos/filter-account.dto';
 import { PaginationResultDto } from 'src/common/pagination/pagination-result.dto';
@@ -58,7 +59,7 @@ export class AccountService {
     email: string,
     accountInfo?: AccountInfo,
     includeDeleted?: boolean,
-  ): Promise<AccountEntity> {
+  ): Promise<SafeAccount> {
     let safeIncludedDeleted: boolean = this.getIncludeDeleted(
       accountInfo,
       includeDeleted,
@@ -84,7 +85,7 @@ export class AccountService {
     accountInfo?: AccountInfo,
     query?: FilterAccountDto,
     includeDeleted?: boolean,
-  ): Promise<AccountEntity[]> {
+  ): Promise<SafeAccount[]> {
     let safeIncludedDeleted: boolean = this.getIncludeDeleted(
       accountInfo,
       includeDeleted,
@@ -103,7 +104,7 @@ export class AccountService {
     accountInfo?: AccountInfo,
     query?: FilterAccountDto,
     includeDeleted?: boolean,
-  ): Promise<PaginationResultDto<AccountEntity>> {
+  ): Promise<PaginationResultDto<SafeAccount>> {
     let safeIncludedDeleted: boolean = this.getIncludeDeleted(
       accountInfo,
       includeDeleted,
@@ -122,7 +123,7 @@ export class AccountService {
     id: string,
     accountInfo?: AccountInfo,
     includeDeleted?: boolean,
-  ): Promise<AccountEntity> {
+  ): Promise<SafeAccount> {
     let safeIncludedDeleted: boolean = this.getIncludeDeleted(
       accountInfo,
       includeDeleted,
@@ -143,7 +144,7 @@ export class AccountService {
     return account;
   }
 
-  async Create(account: CreateAccountDto): Promise<AccountEntity> {
+  async Create(account: CreateAccountDto): Promise<SafeAccount> {
     const existingAccount = await this.accountRepository.FindByEmail(
       account.email,
       false,
@@ -156,7 +157,7 @@ export class AccountService {
     const { hash, salt } =
       await this.authPasswordService.hashPassword('123456');
 
-    const accountEntity: Partial<AccountEntity> = {
+    const accountEntity: Prisma.AccountCreateInput = {
       email: account.email,
       username: account.username,
       role: account.role,
@@ -164,14 +165,14 @@ export class AccountService {
       passwordSalt: salt,
       status: Status.NEED_CHANGE_PASSWORD,
     };
-    return this.accountRepository.Create(accountEntity as AccountEntity);
+    return this.accountRepository.Create(accountEntity);
   }
 
   async Update(
     id: string,
     updateAccountDto: UpdateAccountDto,
     accountInfo?: AccountInfo,
-  ): Promise<AccountEntity> {
+  ): Promise<SafeAccount> {
     this.checkPermission(id, accountInfo);
 
     const account = await this.accountRepository.FindById(id, false);
@@ -185,27 +186,28 @@ export class AccountService {
       throw AccountException.INSUFFICIENT_PERMISSION;
     }
 
+    // Build an explicit patch of only what actually changed, rather than
+    // mutating the fetched row — Prisma updates take a data object, and this
+    // keeps the write surface visible at the call site.
+    const data: Prisma.AccountUpdateInput = {};
+
     if (updateAccountDto.email && updateAccountDto.email !== account.email) {
-      account.email = updateAccountDto.email;
+      data.email = updateAccountDto.email;
     }
 
     if (
       updateAccountDto.username &&
       updateAccountDto.username !== account.username
     ) {
-      account.username = updateAccountDto.username;
+      data.username = updateAccountDto.username;
     }
 
     if (updateAccountDto.role && accountInfo?.role !== Role.ADMIN) {
       throw AccountException.INSUFFICIENT_PERMISSION;
     }
 
-    if (
-      updateAccountDto.role &&
-      updateAccountDto.role !== account.role &&
-      updateAccountDto.role !== account.role
-    ) {
-      account.role = updateAccountDto.role;
+    if (updateAccountDto.role && updateAccountDto.role !== account.role) {
+      data.role = updateAccountDto.role;
     }
 
     if (
@@ -217,10 +219,10 @@ export class AccountService {
     }
 
     if (updateAccountDto.status && updateAccountDto.status !== account.status) {
-      account.status = updateAccountDto.status;
+      data.status = updateAccountDto.status;
     }
 
-    return this.accountRepository.Update(account);
+    return this.accountRepository.Update(id, data);
   }
 
   async SoftDelete(id: string, accountInfo?: AccountInfo): Promise<boolean> {
@@ -271,7 +273,7 @@ export class AccountService {
       const { hash, salt } =
         await this.authPasswordService.hashPassword('123456');
 
-      const adminAccount: Partial<AccountEntity> = {
+      const adminAccount: Prisma.AccountCreateInput = {
         email: 'admin@example.com',
         username: 'admin',
         role: Role.ADMIN,
@@ -280,7 +282,7 @@ export class AccountService {
         status: Status.NEED_CHANGE_PASSWORD,
       };
 
-      await this.accountRepository.Create(adminAccount as AccountEntity);
+      await this.accountRepository.Create(adminAccount);
       return;
     }
 
