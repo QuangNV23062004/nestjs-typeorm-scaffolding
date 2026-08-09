@@ -1,4 +1,5 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AccountRepository } from '../account/account.repository';
 import { TypedConfigService } from 'src/common/typed-config/typed-config.service';
 import { Status as AccountStatus } from '../account/enums/account-status.enum';
@@ -9,7 +10,6 @@ import { UpdatePasswordDto } from './dtos/update-password.dto';
 import { AccountInfo } from 'src/interfaces/request';
 import { Role } from '../account/enums/role.enum';
 import { ResetPasswordTokenRepository } from '../reset-password-token/reset-password-token.repository';
-import { ResetPasswordTokenEntity } from '../reset-password-token/reset-password-token.entity';
 
 import * as ejs from 'ejs';
 import { VerifyResetPasswordTokenDto } from './dtos/verify-reset-password-token.dto';
@@ -37,7 +37,7 @@ export class AuthService {
   ) {}
 
   async Login(loginDto: LoginDto) {
-    const account = await this.accountRepository.FindByEmail(
+    const account = await this.accountRepository.FindByEmailWithCredentials(
       loginDto.email,
       false,
     );
@@ -104,7 +104,7 @@ export class AuthService {
     );
     return await this.accountRepository.Transaction(
       async (tx) => {
-        const account = await this.accountRepository.FindById(
+        const account = await this.accountRepository.FindByIdWithCredentials(
           id,
           false,
           tx,
@@ -136,12 +136,16 @@ export class AuthService {
           updatePasswordDto.newPassword,
         );
 
-        account.passwordSalt = salt;
-        account.passwordHash = hash;
-
         return (
-          this.accountRepository.Update(account, tx) !=
-          null
+          this.accountRepository.Update(
+            account.id,
+            {
+              passwordSalt: salt,
+              passwordHash: hash,
+              status: AccountStatus.ACTIVE,
+            },
+            tx,
+          ) != null
         );
       },
     );
@@ -168,8 +172,8 @@ export class AuthService {
 
         const hash = await this.authPasswordService.hashToken(resetToken);
 
-        const resetPasswordTokenEntity: Partial<ResetPasswordTokenEntity> = {
-          accountId: account.id,
+        const resetPasswordTokenData: Prisma.ResetPasswordTokenCreateInput = {
+          account: { connect: { id: account.id } },
           tokenHash: hash,
           expiresAt: new Date(
             Date.now() +
@@ -186,7 +190,7 @@ export class AuthService {
         );
 
         await this.resetPasswordTokenRepository.Create(
-          resetPasswordTokenEntity,
+          resetPasswordTokenData,
           tx,
         );
 
@@ -293,18 +297,16 @@ export class AuthService {
         const { salt, hash } =
           await this.authPasswordService.hashPassword(password);
 
-        account.passwordSalt = salt;
-        account.passwordHash = hash;
-
         await this.accountRepository.Update(
-          account,
+          account.id,
+          { passwordSalt: salt, passwordHash: hash },
           tx,
         );
 
         //invalidate the used token
-        resetPasswordTokens.usable = false;
         const result = await this.resetPasswordTokenRepository.Update(
-          resetPasswordTokens,
+          resetPasswordTokens.id,
+          { usable: false },
           tx,
         );
         return result != null;

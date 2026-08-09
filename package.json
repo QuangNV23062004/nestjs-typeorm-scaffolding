@@ -26,10 +26,14 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@apollo/server": "^5.5.1",
+    "@as-integrations/express5": "^1.1.2",
     "@nestjs-modules/mailer": "^2.0.2",
+    "@nestjs/apollo": "^13.4.2",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
+    "@nestjs/graphql": "^13.4.2",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/passport": "^11.0.5",
@@ -56,6 +60,7 @@
     "csurf": "^1.11.0",
     "ejs": "^4.0.1",
     "express": "^5.2.1",
+    "graphql": "^16.14.2",
     "helmet": "^8.1.0",
     "joi": "^18.0.2",
     "nodemailer": "^7.0.12",

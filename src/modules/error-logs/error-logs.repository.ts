@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { omit } from 'lodash';
 import { PrismaService } from 'src/common/database/prisma.service';
-import { Prisma } from 'src/generated/prisma';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ErrorLogRepository {

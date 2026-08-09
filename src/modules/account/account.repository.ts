@@ -1,23 +1,44 @@
 import { Injectable } from '@nestjs/common';
-import { plainToInstance } from 'class-transformer';
+import { Account, Prisma } from '@prisma/client';
 import { PrismaService } from 'src/common/database/prisma.service';
 import { PaginationResultDto } from 'src/common/pagination/pagination-result.dto';
-import { Prisma } from 'src/generated/prisma';
-import { AccountEntity } from './account.entity';
 import { FilterAccountDto } from './dtos/filter-account.dto';
 import { Role } from './enums/role.enum';
 
-/** Columns the API is allowed to search/sort by, mapped to Prisma field names. */
+/**
+ * What queries actually return: PrismaService sets a global `omit` for the
+ * credential columns, so they are absent at runtime.
+ *
+ * This alias has to be written by hand. The global omit is a runtime client
+ * option, and because PrismaService extends PrismaClient without threading its
+ * options generic, Prisma's `Account` type still advertises passwordHash —
+ * reading it would compile and be `undefined`. Declaring the omission here puts
+ * the type back in step with the runtime, so a leak fails to compile.
+ */
+export type SafeAccount = Omit<Account, 'passwordHash' | 'passwordSalt'>;
+
+/** The full row, including credentials. Only the two auth paths get this. */
+export type AccountWithCredentials = Account;
+
+/** Columns the API may search/sort by, mapped to Prisma field names. */
 const SEARCHABLE_FIELDS = ['username', 'email', 'role', 'status'] as const;
-const SORTABLE_FIELDS: Record<string, keyof Prisma.AccountOrderByWithRelationInput> =
-  {
-    username: 'username',
-    email: 'email',
-    created_at: 'createdAt',
-    createdAt: 'createdAt',
-    updated_at: 'updatedAt',
-    updatedAt: 'updatedAt',
-  };
+const SORTABLE_FIELDS: Record<
+  string,
+  keyof Prisma.AccountOrderByWithRelationInput
+> = {
+  username: 'username',
+  email: 'email',
+  created_at: 'createdAt',
+  createdAt: 'createdAt',
+  updated_at: 'updatedAt',
+  updatedAt: 'updatedAt',
+};
+
+/** Re-includes the credential columns the global omit strips. */
+const WITH_CREDENTIALS = {
+  passwordHash: false,
+  passwordSalt: false,
+} as const;
 
 @Injectable()
 export class AccountRepository {
@@ -41,16 +62,7 @@ export class AccountRepository {
     return this.prisma.$transaction(fn);
   }
 
-  /** Prisma returns plain objects; @Exclude() only applies to class instances. */
-  private toEntity(row: unknown): AccountEntity {
-    return plainToInstance(AccountEntity, row);
-  }
-
-  private toEntities(rows: unknown[]): AccountEntity[] {
-    return rows.map((row) => this.toEntity(row));
-  }
-
-  /** Shared filter for FindAll/FindPaginated so both stay in sync. */
+  /** Shared filter so FindAll and FindPaginated cannot drift apart. */
   private buildWhere(
     includeDeleted: boolean,
     excludeId: string,
@@ -94,31 +106,35 @@ export class AccountRepository {
   }
 
   async Create(
-    account: Partial<AccountEntity>,
+    account: Prisma.AccountCreateInput,
     tx?: Prisma.TransactionClient,
-  ): Promise<AccountEntity> {
-    const created = await this.db(tx).account.create({
-      data: {
-        username: account.username as string,
-        email: account.email as string,
-        passwordHash: account.passwordHash as string,
-        passwordSalt: account.passwordSalt as string,
-        ...(account.role !== undefined ? { role: account.role } : {}),
-        ...(account.status !== undefined ? { status: account.status } : {}),
-      },
-    });
-    return this.toEntity(created);
+  ): Promise<SafeAccount> {
+    return this.db(tx).account.create({ data: account });
   }
 
   async FindById(
     id: string,
     includeDeleted: boolean,
     tx?: Prisma.TransactionClient,
-  ): Promise<AccountEntity | null> {
-    const row = await this.db(tx).account.findFirst({
+  ): Promise<SafeAccount | null> {
+    return this.db(tx).account.findFirst({
       where: includeDeleted ? { id } : { id, isDeleted: false },
     });
-    return row ? this.toEntity(row) : null;
+  }
+
+  /**
+   * Only for password verification. Everything else must use FindById — this
+   * is the single place the hash re-enters application memory by id.
+   */
+  async FindByIdWithCredentials(
+    id: string,
+    includeDeleted: boolean,
+    tx?: Prisma.TransactionClient,
+  ): Promise<AccountWithCredentials | null> {
+    return this.db(tx).account.findFirst({
+      where: includeDeleted ? { id } : { id, isDeleted: false },
+      omit: WITH_CREDENTIALS,
+    });
   }
 
   //ignore page & limit
@@ -128,12 +144,11 @@ export class AccountRepository {
     role: Role[],
     query?: FilterAccountDto,
     tx?: Prisma.TransactionClient,
-  ): Promise<AccountEntity[]> {
-    const rows = await this.db(tx).account.findMany({
+  ): Promise<SafeAccount[]> {
+    return this.db(tx).account.findMany({
       where: this.buildWhere(includeDeleted, excludeId, role, query),
       orderBy: this.buildOrderBy(query),
     });
-    return this.toEntities(rows);
   }
 
   async FindPaginated(
@@ -142,14 +157,14 @@ export class AccountRepository {
     role: Role[],
     query?: FilterAccountDto,
     tx?: Prisma.TransactionClient,
-  ): Promise<PaginationResultDto<AccountEntity>> {
+  ): Promise<PaginationResultDto<SafeAccount>> {
     const db = this.db(tx);
     const where = this.buildWhere(includeDeleted, excludeId, role, query);
 
     const page = query?.page || 1;
     const limit = query?.limit || 10;
 
-    const [totalItems, rows] = await Promise.all([
+    const [totalItems, items] = await Promise.all([
       db.account.count({ where }),
       db.account.findMany({
         where,
@@ -161,8 +176,8 @@ export class AccountRepository {
 
     const totalPages = Math.ceil(totalItems / limit);
 
-    return new PaginationResultDto<AccountEntity>(
-      this.toEntities(rows),
+    return new PaginationResultDto<SafeAccount>(
+      items,
       totalPages,
       page,
       limit,
@@ -179,30 +194,30 @@ export class AccountRepository {
     email: string,
     includeDeleted: boolean,
     tx?: Prisma.TransactionClient,
-  ): Promise<AccountEntity | null> {
-    const row = await this.db(tx).account.findFirst({
+  ): Promise<SafeAccount | null> {
+    return this.db(tx).account.findFirst({
       where: includeDeleted ? { email } : { email, isDeleted: false },
     });
-    return row ? this.toEntity(row) : null;
+  }
+
+  /** Only for login. See FindByIdWithCredentials. */
+  async FindByEmailWithCredentials(
+    email: string,
+    includeDeleted: boolean,
+    tx?: Prisma.TransactionClient,
+  ): Promise<AccountWithCredentials | null> {
+    return this.db(tx).account.findFirst({
+      where: includeDeleted ? { email } : { email, isDeleted: false },
+      omit: WITH_CREDENTIALS,
+    });
   }
 
   async Update(
-    account: AccountEntity,
+    id: string,
+    data: Prisma.AccountUpdateInput,
     tx?: Prisma.TransactionClient,
-  ): Promise<AccountEntity> {
-    const updated = await this.db(tx).account.update({
-      where: { id: account.id },
-      data: {
-        username: account.username,
-        email: account.email,
-        passwordHash: account.passwordHash,
-        passwordSalt: account.passwordSalt,
-        role: account.role,
-        status: account.status,
-        isDeleted: account.isDeleted,
-      },
-    });
-    return this.toEntity(updated);
+  ): Promise<SafeAccount> {
+    return this.db(tx).account.update({ where: { id }, data });
   }
 
   async SoftDelete(id: string, tx?: Prisma.TransactionClient): Promise<boolean> {

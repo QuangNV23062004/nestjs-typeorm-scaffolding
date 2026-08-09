@@ -1,4 +1,14 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts",
+    // Root-level .ts files are tooling config, not app code. Leaving them in
+    // widens tsc's inferred rootDir from src/ to the repo root, which shifts
+    // every output from dist/*.js to dist/src/*.js and breaks
+    // `start:prod` (node dist/main).
+    "prisma.config.ts"
+  ]
 }
