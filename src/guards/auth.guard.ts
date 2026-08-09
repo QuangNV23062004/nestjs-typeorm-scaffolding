@@ -12,6 +12,7 @@ import { Request } from 'express';
 import { extractAccessToken } from 'src/common/utils/extract-token.utils';
 import { AuthJwtService } from 'src/modules/auth/services/auth-jwt.service';
 import { getRequestContext } from 'src/common/context/request.context';
+import { getRequest } from 'src/common/context/execution-context.util';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -29,7 +30,12 @@ export class AuthGuard implements CanActivate {
     if (isPublic) {
       return true;
     }
-    const request = context.switchToHttp().getRequest();
+    // Works for REST and GraphQL: under GraphQL the request lives on the
+    // GraphQL context, and switchToHttp() would return undefined.
+    const request = getRequest(context);
+    if (!request) {
+      throw new UnauthorizedException('No request context available');
+    }
     const token = extractAccessToken(request);
     if (!token) {
       throw new UnauthorizedException('Access token not found');

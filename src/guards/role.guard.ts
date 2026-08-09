@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { getRequest } from '../common/context/execution-context.util';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -18,7 +19,7 @@ export class RolesGuard implements CanActivate {
     );
     if (!requiredRoles) return true;
 
-    const request = ctx.switchToHttp().getRequest();
+    const request = getRequest(ctx);
     const accountInfo = request?.accountInfo;
     if (!accountInfo?.role)
       throw new ForbiddenException('You do not have permission to access');
