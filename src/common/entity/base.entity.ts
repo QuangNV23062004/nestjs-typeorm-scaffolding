@@ -1,20 +1,14 @@
-import {
-  Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
-import { BaseEntity as TypeOrmBaseEntity } from 'typeorm';
-export abstract class BaseEntity extends TypeOrmBaseEntity {
-  @PrimaryGeneratedColumn('uuid')
+/**
+ * Shared shape for every persisted record.
+ *
+ * Prisma has no model inheritance, so these four fields are repeated in each
+ * model in the *.prisma files. This class is the TypeScript-side counterpart:
+ * it exists so entities stay real classes, which ClassSerializerInterceptor
+ * needs in order to honour @Exclude() (Prisma returns plain objects).
+ */
+export abstract class BaseEntity {
   id: string;
-
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt!: Date;
-
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
-  updatedAt!: Date;
-
-  @Column({ name: 'is_deleted', default: false })
-  isDeleted!: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  isDeleted: boolean;
 }

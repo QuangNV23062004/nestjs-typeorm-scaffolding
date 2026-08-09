@@ -1,0 +1,19 @@
+model ErrorLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  createdAt   DateTime @default(now())     @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt          @map("updated_at") @db.Timestamptz(6)
+  isDeleted   Boolean  @default(false)     @map("is_deleted")
+
+  statusCode  Int?
+  method      String?  @db.VarChar(10)
+  url         String?  @db.VarChar(255)
+  params      Json?
+  query       Json?
+  body        Json?
+  accountInfo Json?
+  message     String?
+  // W3C trace id (32 hex). Joins this row to its trace and to the app logs.
+  traceId     String?  @db.VarChar(32)
+
+  @@map("error_logs")
+}

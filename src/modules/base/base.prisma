@@ -1,0 +1,15 @@
+// Generator + datasource live here. Prisma reads `schema: 'src/modules'` from
+// prisma.config.ts and picks up every *.prisma under it recursively, so each
+// module keeps its own models next to its NestJS code.
+//
+// Note: the connection URL is NOT declared here — Prisma 7 moved it to
+// prisma.config.ts (datasource.url) and the runtime client takes an adapter.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

@@ -99,17 +99,15 @@ export class AuthService {
     updatePasswordDto: UpdatePasswordDto,
     accountInfo?: AccountInfo,
   ): Promise<boolean> {
-    const entityManager = await this.accountRepository.GetEntityManager();
-
     await this.authPasswordService.isPasswordStrong(
       updatePasswordDto.newPassword,
     );
-    return await entityManager.transaction(
-      async (transactionalEntityManager) => {
+    return await this.accountRepository.Transaction(
+      async (tx) => {
         const account = await this.accountRepository.FindById(
           id,
           false,
-          transactionalEntityManager,
+          tx,
         );
 
         if (!account) {
@@ -142,7 +140,7 @@ export class AuthService {
         account.passwordHash = hash;
 
         return (
-          this.accountRepository.Update(account, transactionalEntityManager) !=
+          this.accountRepository.Update(account, tx) !=
           null
         );
       },
@@ -150,13 +148,12 @@ export class AuthService {
   }
 
   async ResetPassword(email: string): Promise<void> {
-    const entityManager = await this.accountRepository.GetEntityManager();
-    return await entityManager.transaction(
-      async (transactionalEntityManager) => {
+    return await this.accountRepository.Transaction(
+      async (tx) => {
         const account = await this.accountRepository.FindByEmail(
           email,
           false,
-          transactionalEntityManager,
+          tx,
         );
         if (!account) {
           throw AuthException.ACCOUNT_NOT_FOUND;
@@ -171,16 +168,17 @@ export class AuthService {
 
         const hash = await this.authPasswordService.hashToken(resetToken);
 
-        const resetPasswordTokenEntity = new ResetPasswordTokenEntity();
-        resetPasswordTokenEntity.accountId = account.id;
-        resetPasswordTokenEntity.tokenHash = hash;
-        resetPasswordTokenEntity.expiresAt = new Date(
-          Date.now() +
-            this.authJwtService.parseExpiresIn(
-              this.typedConfigService.jwt.resetPasswordExpiresIn,
-            ),
-        );
-        resetPasswordTokenEntity.usable = true;
+        const resetPasswordTokenEntity: Partial<ResetPasswordTokenEntity> = {
+          accountId: account.id,
+          tokenHash: hash,
+          expiresAt: new Date(
+            Date.now() +
+              this.authJwtService.parseExpiresIn(
+                this.typedConfigService.jwt.resetPasswordExpiresIn,
+              ),
+          ),
+          usable: true,
+        };
 
         await this.resetPasswordTokenRepository.BatchUpdate(
           { accountId: account.id, usable: true },
@@ -189,7 +187,7 @@ export class AuthService {
 
         await this.resetPasswordTokenRepository.Create(
           resetPasswordTokenEntity,
-          transactionalEntityManager,
+          tx,
         );
 
         const template =
@@ -247,9 +245,8 @@ export class AuthService {
   async VerifyResetPasswordToken(
     verifyResetPasswordTokenDto: VerifyResetPasswordTokenDto,
   ): Promise<boolean> {
-    const entityManager = await this.accountRepository.GetEntityManager();
-    return await entityManager.transaction(
-      async (transactionalEntityManager) => {
+    return await this.accountRepository.Transaction(
+      async (tx) => {
         const { token, password, confirmPassword } =
           verifyResetPasswordTokenDto;
 
@@ -272,7 +269,7 @@ export class AuthService {
         const resetPasswordTokens =
           await this.resetPasswordTokenRepository.FindActiveTokenByAccountId(
             decoded.sub,
-            transactionalEntityManager,
+            tx,
           );
 
         if (!resetPasswordTokens) {
@@ -301,14 +298,14 @@ export class AuthService {
 
         await this.accountRepository.Update(
           account,
-          transactionalEntityManager,
+          tx,
         );
 
         //invalidate the used token
         resetPasswordTokens.usable = false;
         const result = await this.resetPasswordTokenRepository.Update(
           resetPasswordTokens,
-          transactionalEntityManager,
+          tx,
         );
         return result != null;
       },

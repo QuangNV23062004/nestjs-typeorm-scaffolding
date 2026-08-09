@@ -7,7 +7,6 @@ import {
 import { RequestContextMiddleware } from './common/context/request-context.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { TypedConfigModule } from './common/typed-config/typed-config.module';
 import { TypedConfigService } from './common/typed-config/typed-config.service';
@@ -23,7 +22,7 @@ import {
 } from './interceptors';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { HttpExceptionFilter } from './filters';
-import { DatabaseModule } from './common/database/database.module';
+import { PrismaModule } from './common/database/prisma.module';
 import { ResetPasswordTokenModule } from './modules/reset-password-token/reset-password-token.module';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
@@ -61,8 +60,8 @@ import { AccountRepository } from './modules/account/account.repository';
         },
       }),
     }),
-    //db module
-    DatabaseModule.forRoot(),
+    //db module (global — one PrismaClient for the process)
+    PrismaModule,
 
     //modules
     AccountModule,

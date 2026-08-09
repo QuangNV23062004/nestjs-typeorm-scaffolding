@@ -1,26 +1,27 @@
 import { BaseEntity } from 'src/common/entity/base.entity';
-import { Column, Entity } from 'typeorm';
 import { Exclude } from 'class-transformer';
 
-@Entity('accounts')
+/**
+ * Domain/serialization type for `accounts`. Mirrors the Account model in
+ * account.prisma. @Exclude() keeps the credential columns out of API responses
+ * — which only works on class instances, so repositories hydrate rather than
+ * returning Prisma's plain objects directly.
+ */
 export class AccountEntity extends BaseEntity {
-  @Column({ name: 'username' })
   username: string;
 
-  @Column({ name: 'email', unique: true })
   email: string;
 
-  @Exclude()
-  @Column({ name: 'password_hash' })
+  // toPlainOnly: strip from API responses, but still hydrate from the DB —
+  // auth compares against passwordHash. A bare @Exclude() drops the field in
+  // BOTH directions, which silently breaks login.
+  @Exclude({ toPlainOnly: true })
   passwordHash: string;
 
-  @Exclude()
-  @Column({ name: 'password_salt' })
+  @Exclude({ toPlainOnly: true })
   passwordSalt: string;
 
-  @Column({ name: 'role', default: 'user' })
   role: string;
 
-  @Column({ name: 'status', default: 'active' })
   status: string;
 }

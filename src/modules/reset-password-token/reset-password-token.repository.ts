@@ -1,103 +1,110 @@
-import { InjectRepository } from '@nestjs/typeorm';
-import { Condition, FindOptionsWhere, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { PrismaService } from 'src/common/database/prisma.service';
+import { Prisma } from 'src/generated/prisma';
 import { ResetPasswordTokenEntity } from './reset-password-token.entity';
-import { EntityManager } from 'typeorm';
-import {
-  WhereClause,
-  WhereClauseCondition,
-} from 'typeorm/query-builder/WhereClause';
 
+@Injectable()
 export class ResetPasswordTokenRepository {
-  constructor(
-    @InjectRepository(ResetPasswordTokenEntity)
-    private readonly resetPasswordTokenRepository: Repository<ResetPasswordTokenEntity>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async GetEntityManager() {
-    return this.resetPasswordTokenRepository?.manager;
+  private db(tx?: Prisma.TransactionClient) {
+    return tx ?? this.prisma;
   }
 
-  async GetRepository(entityManager?: EntityManager) {
-    if (entityManager) {
-      return entityManager.getRepository(ResetPasswordTokenEntity);
-    }
+  private toEntity(row: unknown): ResetPasswordTokenEntity {
+    return plainToInstance(ResetPasswordTokenEntity, row);
+  }
 
-    return this.resetPasswordTokenRepository;
+  async Transaction<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(fn);
   }
 
   async Create(
-    token: ResetPasswordTokenEntity,
-    entityManager?: EntityManager,
+    token: Partial<ResetPasswordTokenEntity>,
+    tx?: Prisma.TransactionClient,
   ): Promise<ResetPasswordTokenEntity> {
-    const repository = await this.GetRepository(entityManager);
-
-    return repository.save(token);
+    const created = await this.db(tx).resetPasswordToken.create({
+      data: {
+        accountId: token.accountId as string,
+        tokenHash: token.tokenHash as string,
+        expiresAt: token.expiresAt as Date,
+        ...(token.usable !== undefined ? { usable: token.usable } : {}),
+      },
+    });
+    return this.toEntity(created);
   }
 
   async FindById(
     id: string,
     includeDeleted: boolean,
-    entityManager?: EntityManager,
+    tx?: Prisma.TransactionClient,
   ): Promise<ResetPasswordTokenEntity | null> {
-    const repository = await this.GetRepository(entityManager);
-    const where = { id: id };
-    if (includeDeleted) {
-      return repository.findOne({ where: where });
-    }
-    return repository.findOne({ where: { ...where, isDeleted: false } });
+    const row = await this.db(tx).resetPasswordToken.findFirst({
+      where: includeDeleted ? { id } : { id, isDeleted: false },
+    });
+    return row ? this.toEntity(row) : null;
   }
 
-  async SoftDelete(
-    id: string,
-    entityManager?: EntityManager,
-  ): Promise<boolean> {
-    const repository = await this.GetRepository(entityManager);
-    const result = await repository.update(id, { isDeleted: true });
-    return (result?.affected as number) > 0;
+  async SoftDelete(id: string, tx?: Prisma.TransactionClient): Promise<boolean> {
+    const result = await this.db(tx).resetPasswordToken.updateMany({
+      where: { id },
+      data: { isDeleted: true },
+    });
+    return result.count > 0;
   }
 
-  async HardDelete(
-    id: string,
-    entityManager?: EntityManager,
-  ): Promise<boolean> {
-    const repository = await this.GetRepository(entityManager);
-    const result = await repository.delete(id);
-    return (result?.affected as number) > 0;
+  async HardDelete(id: string, tx?: Prisma.TransactionClient): Promise<boolean> {
+    const result = await this.db(tx).resetPasswordToken.deleteMany({
+      where: { id },
+    });
+    return result.count > 0;
   }
 
-  async Restore(id: string, entityManager?: EntityManager): Promise<void> {
-    const repository = await this.GetRepository(entityManager);
-    await repository.update(id, { isDeleted: false });
+  async Restore(id: string, tx?: Prisma.TransactionClient): Promise<void> {
+    await this.db(tx).resetPasswordToken.updateMany({
+      where: { id },
+      data: { isDeleted: false },
+    });
   }
 
   async Update(
     token: ResetPasswordTokenEntity,
-    entityManager?: EntityManager,
+    tx?: Prisma.TransactionClient,
   ): Promise<ResetPasswordTokenEntity> {
-    const repository = await this.GetRepository(entityManager);
-    return repository.save(token);
+    const updated = await this.db(tx).resetPasswordToken.update({
+      where: { id: token.id },
+      data: {
+        accountId: token.accountId,
+        tokenHash: token.tokenHash,
+        expiresAt: token.expiresAt,
+        usable: token.usable,
+        isDeleted: token.isDeleted,
+      },
+    });
+    return this.toEntity(updated);
   }
 
   async BatchUpdate(
-    where: FindOptionsWhere<ResetPasswordTokenEntity>,
-    updateData: Partial<ResetPasswordTokenEntity>,
-    entityManager?: EntityManager,
+    where: Prisma.ResetPasswordTokenWhereInput,
+    updateData: Prisma.ResetPasswordTokenUpdateManyMutationInput,
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    const repository = await this.GetRepository(entityManager);
-    await repository.update(where, updateData);
+    await this.db(tx).resetPasswordToken.updateMany({
+      where,
+      data: updateData,
+    });
   }
 
   async FindActiveTokenByAccountId(
     accountId: string,
-    entityManager?: EntityManager,
+    tx?: Prisma.TransactionClient,
   ): Promise<ResetPasswordTokenEntity | null> {
-    const repository = await this.GetRepository(entityManager);
-    return repository.findOne({
-      where: {
-        accountId: accountId,
-        usable: true,
-        isDeleted: false,
-      },
+    const row = await this.db(tx).resetPasswordToken.findFirst({
+      where: { accountId, usable: true, isDeleted: false },
     });
+    return row ? this.toEntity(row) : null;
   }
 }

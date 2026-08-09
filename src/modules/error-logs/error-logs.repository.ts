@@ -1,16 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { omit } from 'lodash';
-import * as zlib from 'zlib';
-import { ErrorLogsEntity } from './error-logs.entity';
+import { PrismaService } from 'src/common/database/prisma.service';
+import { Prisma } from 'src/generated/prisma';
 
 @Injectable()
 export class ErrorLogRepository {
-  constructor(
-    @InjectRepository(ErrorLogsEntity)
-    private readonly errorLogRepository: Repository<ErrorLogsEntity>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async saveLog(
     statusCode: number,
@@ -24,21 +19,22 @@ export class ErrorLogRepository {
     traceId?: string,
   ): Promise<void> {
     const omitedBody = omit(body, ['passwordHash', 'password', 'token']);
-    const log = await this.errorLogRepository.create({
-      statusCode,
-      method,
-      url,
-      query,
-      params,
-      body: omitedBody,
-      accountInfo,
-      message,
-      traceId: traceId ?? null,
-    });
 
     // Save asynchronously without awaiting to avoid blocking
-    this.errorLogRepository
-      .save(log)
+    this.prisma.errorLog
+      .create({
+        data: {
+          statusCode,
+          method,
+          url,
+          query: (query ?? {}) as Prisma.InputJsonValue,
+          params: (params ?? {}) as Prisma.InputJsonValue,
+          body: (omitedBody ?? {}) as Prisma.InputJsonValue,
+          accountInfo: (accountInfo ?? {}) as Prisma.InputJsonValue,
+          message,
+          traceId: traceId ?? null,
+        },
+      })
       .catch((err) => console.error('Failed to save error log:', err));
   }
 }
