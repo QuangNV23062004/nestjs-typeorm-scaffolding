@@ -7,6 +7,7 @@ import {
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { buildDatabaseUrl } from './database-url';
+import { registerTransactionClient } from './transaction.context';
 
 /**
  * Single PrismaClient for the whole app.
@@ -52,6 +53,10 @@ export class PrismaService
 
   async onModuleInit() {
     await this.$connect();
+    // Lets @Transactional() work on classes that compose repositories without
+    // injecting PrismaService themselves. One client per process, so this is a
+    // registration, not a cache.
+    registerTransactionClient(this);
     this.logger.log('Prisma connected');
   }
 
