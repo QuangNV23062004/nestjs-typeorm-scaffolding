@@ -8,6 +8,8 @@ import { RequestContextMiddleware } from './common/context/request-context.middl
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AppResolver } from './app.resolver';
+import { PostModule } from './modules/post/post.module';
+import { CommentModule } from './modules/comment/comment.module';
 
 import { TypedConfigModule } from './common/typed-config/typed-config.module';
 import { TypedConfigService } from './common/typed-config/typed-config.service';
@@ -78,10 +80,13 @@ import { UserModule } from './modules/user/user.module';
       driver: ApolloDriver,
       autoSchemaFile: true,
       debug: true,
-      playground: true,
+      playground: false,
+      graphiql: true,
     }),
 
     UserModule,
+    PostModule,
+    CommentModule,
   ],
   controllers: [AppController],
   providers: [

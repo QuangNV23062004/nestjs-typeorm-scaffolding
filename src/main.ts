@@ -53,6 +53,10 @@ async function bootstrap() {
             'https://cdn.tailwindcss.com',
             'https://cdnjs.cloudflare.com',
             'https://cdn.jsdelivr.net',
+            // GraphiQL (graphql.graphiql = true) loads React and the GraphiQL
+            // bundle from unpkg at runtime. Dev tooling only — the IDE is not
+            // served when playground/graphiql are off in production.
+            'https://unpkg.com',
           ],
           styleSrc: [
             "'self'",
@@ -60,6 +64,7 @@ async function bootstrap() {
             'https://cdn.tailwindcss.com',
             'https://cdnjs.cloudflare.com',
             'https://cdn.jsdelivr.net',
+            'https://unpkg.com',
           ],
           fontSrc: [
             "'self'",
