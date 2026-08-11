@@ -2,6 +2,15 @@
 // prisma.config.ts and picks up every *.prisma under it recursively, so each
 // module keeps its own models next to its NestJS code.
 //
+// This file sits directly in src/modules/, not in a base/ subfolder, and must
+// stay there. The Prisma VS Code extension ignores prisma.config.ts and infers
+// the schema root by walking up from an open .prisma file for as long as the
+// parent directory *directly* contains .prisma files. With every schema file
+// nested one level deep, that walk stops at src/modules/<module>/ and each
+// module is type-checked alone — cross-module references (User -> Post) show
+// as unresolved even though the CLI validates fine. Keeping one .prisma here
+// makes the walk reach src/modules/ and load the whole schema.
+//
 // Note: the connection URL is NOT declared here — Prisma 7 moved it to
 // prisma.config.ts (datasource.url) and the runtime client takes an adapter.
 
