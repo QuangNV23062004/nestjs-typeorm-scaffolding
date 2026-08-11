@@ -16,13 +16,14 @@ export interface PaginationQueryLike {
   page?: number;
   limit?: number;
   search?: string;
-  searchBy?: string[];
+  /** string[] on the Prisma line, a joined string on the TypeORM line. */
+  searchBy?: string | string[];
   order?: string;
   orderBy?: string;
 }
 
 /**
- * Resolves paging inputs and the Prisma `skip`/`take` derived from them, so the
+ * Resolves paging inputs and the `skip`/`take` derived from them, so the
  * off-by-one in `(page - 1) * limit` is written once.
  */
 export function resolvePaging(query?: PaginationQueryLike): {
@@ -34,6 +35,11 @@ export function resolvePaging(query?: PaginationQueryLike): {
   const page = query?.page || DEFAULT_PAGE;
   const limit = query?.limit || DEFAULT_LIMIT;
   return { page, limit, skip: (page - 1) * limit, take: limit };
+}
+
+function joinSearchBy(searchBy?: string | string[]): string {
+  if (Array.isArray(searchBy)) return searchBy.join(',');
+  return searchBy || '';
 }
 
 /**
@@ -55,7 +61,7 @@ export function paginated<T>(
     page,
     limit,
     query?.search || '',
-    query?.searchBy?.join(',') || '',
+    joinSearchBy(query?.searchBy),
     query?.order || '',
     query?.orderBy || '',
     page < totalPages,
