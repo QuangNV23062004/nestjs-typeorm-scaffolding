@@ -1,0 +1,14 @@
+{
+  // Default is "auto", which stops scanning node_modules for auto-import
+  // candidates once a project gets large. With ~1100 packages and the 10MB
+  // generated Prisma client in src/, this project is over that line, so
+  // packages not yet imported anywhere (e.g. @nestjs/graphql) never appear
+  // as import suggestions. "on" forces the scan.
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+
+  // Keep the server from being starved by the generated client's type surface.
+  "typescript.tsserver.maxTsServerMemory": 4096,
+
+  // Use the repo's TypeScript, not VS Code's bundled one.
+  "typescript.tsdk": "node_modules/typescript/lib"
+}
