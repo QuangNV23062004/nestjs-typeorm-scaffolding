@@ -151,58 +151,75 @@ export class AuthService {
     );
   }
 
+  /**
+   * Issues a reset token, then mails it.
+   *
+   * The send is deliberately outside the transaction. An SMTP round trip inside
+   * one pins a pool connection for its whole duration and has to finish inside
+   * Prisma's 5s transaction timeout, so a slow mail server turns into P2028 and
+   * a rolled-back reset. Raising the timeout only widens the window.
+   *
+   * The remaining failure is ordered the safe way round: if the send fails the
+   * token is already committed, so the user simply gets nothing and retries.
+   * The reverse — mail sent, token rolled back — would hand them a link that is
+   * guaranteed to fail.
+   */
   async ResetPassword(email: string): Promise<void> {
-    return await this.accountRepository.Transaction(
-      async (tx) => {
-        const account = await this.accountRepository.FindByEmail(
-          email,
-          false,
-          tx,
-        );
-        if (!account) {
-          throw AuthException.ACCOUNT_NOT_FOUND;
-        }
+    const resetToken = await this.accountRepository.Transaction(async (tx) => {
+      const account = await this.accountRepository.FindByEmail(
+        email,
+        false,
+        tx,
+      );
+      if (!account) {
+        throw AuthException.ACCOUNT_NOT_FOUND;
+      }
 
-        const payload = {
-          sub: account.id,
-        };
+      const payload = {
+        sub: account.id,
+      };
 
-        const resetToken =
-          await this.authJwtService.createResetPasswordToken(payload);
+      const token =
+        await this.authJwtService.createResetPasswordToken(payload);
 
-        const hash = await this.authPasswordService.hashToken(resetToken);
+      const hash = await this.authPasswordService.hashToken(token);
 
-        const resetPasswordTokenData: Prisma.ResetPasswordTokenCreateInput = {
-          account: { connect: { id: account.id } },
-          tokenHash: hash,
-          expiresAt: new Date(
-            Date.now() +
-              this.authJwtService.parseExpiresIn(
-                this.typedConfigService.jwt.resetPasswordExpiresIn,
-              ),
-          ),
-          usable: true,
-        };
+      const resetPasswordTokenData: Prisma.ResetPasswordTokenCreateInput = {
+        account: { connect: { id: account.id } },
+        tokenHash: hash,
+        expiresAt: new Date(
+          Date.now() +
+            this.authJwtService.parseExpiresIn(
+              this.typedConfigService.jwt.resetPasswordExpiresIn,
+            ),
+        ),
+        usable: true,
+      };
 
-        await this.resetPasswordTokenRepository.BatchUpdate(
-          { accountId: account.id, usable: true },
-          { usable: false },
-        );
+      // `tx` was missing here: the invalidation ran on the plain client, so a
+      // rollback left the old tokens dead and the new one gone — an account
+      // with no usable reset token at all.
+      await this.resetPasswordTokenRepository.BatchUpdate(
+        { accountId: account.id, usable: true },
+        { usable: false },
+        tx,
+      );
 
-        await this.resetPasswordTokenRepository.Create(
-          resetPasswordTokenData,
-          tx,
-        );
+      await this.resetPasswordTokenRepository.Create(
+        resetPasswordTokenData,
+        tx,
+      );
 
-        const template =
-          await this.authTemplateService.getResetPasswordEmailTemplate();
+      return token;
+    });
 
-        await this.authEmailService.sendResetPasswordEmail(
-          email,
-          template,
-          resetToken,
-        );
-      },
+    const template =
+      await this.authTemplateService.getResetPasswordEmailTemplate();
+
+    await this.authEmailService.sendResetPasswordEmail(
+      email,
+      template,
+      resetToken,
     );
   }
 
