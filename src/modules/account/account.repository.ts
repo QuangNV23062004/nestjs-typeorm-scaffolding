@@ -1,4 +1,5 @@
 import { InjectRepository } from '@nestjs/typeorm';
+import { BaseRepository } from 'src/common/database/base.repository';
 import { AccountEntity } from './account.entity';
 import { Repository } from 'typeorm/repository/Repository';
 import { WhereClause } from 'typeorm/query-builder/WhereClause';
@@ -6,25 +7,20 @@ import { FindOptionsWhere } from 'typeorm/find-options/FindOptionsWhere';
 import { FilterAccountDto } from './dtos/filter-account.dto';
 import { EntityManager } from 'typeorm/entity-manager/EntityManager';
 import { PaginationResultDto } from 'src/common/pagination/pagination-result.dto';
+import { paginated } from 'src/common/pagination/paginate';
 import { Role } from './enums/role.enum';
 
-export class AccountRepository {
+export class AccountRepository extends BaseRepository<AccountEntity> {
+  // Redeclared so Nest emits design:paramtypes on the concrete class, and so
+  // @InjectRepository can name this subclass's entity.
   constructor(
     @InjectRepository(AccountEntity)
-    private readonly accountRepository: Repository<AccountEntity>,
-  ) {}
-
-  async GetEntityManager() {
-    return this.accountRepository.manager;
+    accountRepository: Repository<AccountEntity>,
+  ) {
+    super(accountRepository);
   }
 
-  async GetRepository(entityManager?: EntityManager) {
-    if (entityManager) {
-      return entityManager.getRepository(AccountEntity);
-    }
 
-    return this.accountRepository;
-  }
 
   async Create(
     account: AccountEntity,
@@ -120,18 +116,7 @@ export class AccountRepository {
 
     const items = await qb.skip(offset).take(limit).getMany();
 
-    return new PaginationResultDto<AccountEntity>(
-      items,
-      Math.ceil(totalItems / limit),
-      page,
-      limit,
-      query?.search || '',
-      query?.searchBy || '',
-      query?.order || '',
-      query?.orderBy || '',
-      page < Math.ceil(totalItems / limit),
-      page > 1,
-    );
+    return paginated(items, totalItems, page, limit, query);
   }
 
   async FindByEmail(

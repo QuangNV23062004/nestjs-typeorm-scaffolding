@@ -149,9 +149,21 @@ export class AuthService {
     );
   }
 
+  /**
+   * Issues a reset token, then mails it.
+   *
+   * The send is deliberately outside the transaction. An SMTP round trip inside
+   * one pins a pool connection for the whole exchange, so a slow mail server
+   * ties up connections that unrelated requests then queue behind.
+   *
+   * The remaining failure is ordered the safe way round: if the send fails the
+   * token is already committed, so the user gets nothing and retries. The
+   * reverse - mail sent, token rolled back - would hand them a link that is
+   * guaranteed to fail.
+   */
   async ResetPassword(email: string): Promise<void> {
     const entityManager = await this.accountRepository.GetEntityManager();
-    return await entityManager.transaction(
+    const resetToken = await entityManager.transaction(
       async (transactionalEntityManager) => {
         const account = await this.accountRepository.FindByEmail(
           email,
@@ -182,9 +194,14 @@ export class AuthService {
         );
         resetPasswordTokenEntity.usable = true;
 
+        // The manager was missing here while the Create below had it: the
+        // invalidation ran outside the transaction, so a rollback left the old
+        // tokens dead and the new one gone - an account with no usable reset
+        // token at all.
         await this.resetPasswordTokenRepository.BatchUpdate(
           { accountId: account.id, usable: true },
           { usable: false },
+          transactionalEntityManager,
         );
 
         await this.resetPasswordTokenRepository.Create(
@@ -192,15 +209,17 @@ export class AuthService {
           transactionalEntityManager,
         );
 
-        const template =
-          await this.authTemplateService.getResetPasswordEmailTemplate();
-
-        await this.authEmailService.sendResetPasswordEmail(
-          email,
-          template,
-          resetToken,
-        );
+        return resetToken;
       },
+    );
+
+    const template =
+      await this.authTemplateService.getResetPasswordEmailTemplate();
+
+    await this.authEmailService.sendResetPasswordEmail(
+      email,
+      template,
+      resetToken,
     );
   }
 

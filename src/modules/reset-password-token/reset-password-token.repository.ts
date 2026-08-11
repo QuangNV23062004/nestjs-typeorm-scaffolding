@@ -1,4 +1,5 @@
 import { InjectRepository } from '@nestjs/typeorm';
+import { BaseRepository } from 'src/common/database/base.repository';
 import { Condition, FindOptionsWhere, Repository } from 'typeorm';
 import { ResetPasswordTokenEntity } from './reset-password-token.entity';
 import { EntityManager } from 'typeorm';
@@ -7,23 +8,17 @@ import {
   WhereClauseCondition,
 } from 'typeorm/query-builder/WhereClause';
 
-export class ResetPasswordTokenRepository {
+export class ResetPasswordTokenRepository extends BaseRepository<ResetPasswordTokenEntity> {
+  // Redeclared so Nest emits design:paramtypes on the concrete class, and so
+  // @InjectRepository can name this subclass's entity.
   constructor(
     @InjectRepository(ResetPasswordTokenEntity)
-    private readonly resetPasswordTokenRepository: Repository<ResetPasswordTokenEntity>,
-  ) {}
-
-  async GetEntityManager() {
-    return this.resetPasswordTokenRepository?.manager;
+    resetPasswordTokenRepository: Repository<ResetPasswordTokenEntity>,
+  ) {
+    super(resetPasswordTokenRepository);
   }
 
-  async GetRepository(entityManager?: EntityManager) {
-    if (entityManager) {
-      return entityManager.getRepository(ResetPasswordTokenEntity);
-    }
 
-    return this.resetPasswordTokenRepository;
-  }
 
   async Create(
     token: ResetPasswordTokenEntity,
