@@ -9,6 +9,9 @@
     // widens tsc's inferred rootDir from src/ to the repo root, which shifts
     // every output from dist/*.js to dist/src/*.js and breaks
     // `start:prod` (node dist/main).
-    "prisma.config.ts"
+    "prisma.config.ts",
+    // Same hazard: prisma/seed.ts imports ../src/, so leaving it in widens
+    // rootDir to the repo root. It is run through ts-node, never compiled.
+    "prisma/**/*.ts"
   ]
 }

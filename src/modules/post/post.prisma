@@ -1,0 +1,32 @@
+// type Post {
+//   id: ID!
+//   title: String!
+//   content: String!
+//   author: User!
+//   comments: [Comment!]!
+//   likes: Int!
+//   publishedAt: String
+// }
+
+model Post {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  isDeleted Boolean  @default(false) @map("is_deleted")
+
+  title   String
+  content String
+  likes   Int    @default(0)
+
+  // FK side: holds the column, so it carries fields/references.
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String @map("author_id") @db.Uuid
+
+  // List side: never takes fields/references.
+  comments Comment[]
+
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+
+  @@index([authorId])
+  @@map("posts")
+}
