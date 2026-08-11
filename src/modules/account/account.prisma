@@ -1,15 +1,15 @@
 model Account {
-  id           String   @id @default(uuid()) @db.Uuid
-  createdAt    DateTime @default(now())     @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt          @map("updated_at") @db.Timestamptz(6)
-  isDeleted    Boolean  @default(false)     @map("is_deleted")
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  isDeleted Boolean  @default(false) @map("is_deleted")
 
   username     String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  passwordSalt String   @map("password_salt")
-  role         String   @default("user")
-  status       String   @default("active")
+  email        String @unique
+  passwordHash String @map("password_hash")
+  passwordSalt String @map("password_salt")
+  role         String @default("user")
+  status       String @default("active")
 
   resetPasswordTokens ResetPasswordToken[]
 
