@@ -1,5 +1,7 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { PrismaService } from 'src/common/database/prisma.service';
+import { Transactional } from 'src/common/database/transaction.context';
 import { AccountRepository } from '../account/account.repository';
 import { TypedConfigService } from 'src/common/typed-config/typed-config.service';
 import { Status as AccountStatus } from '../account/enums/account-status.enum';
@@ -22,6 +24,11 @@ import { AuthTemplateService } from './services/auth-template.service';
 export class AuthService {
   constructor(
     private readonly typedConfigService: TypedConfigService,
+
+    // Read by @Transactional() to open the transaction. It would otherwise fall
+    // back to the client PrismaService registers on init, which works in the
+    // running app but not in a test module compiled without .init().
+    private readonly prisma: PrismaService,
 
     private readonly accountRepository: AccountRepository,
 
@@ -94,6 +101,7 @@ export class AuthService {
     return this.accountRepository.FindById(id, false);
   }
 
+  @Transactional()
   async UpdatePassword(
     id: string,
     updatePasswordDto: UpdatePasswordDto,
@@ -102,52 +110,44 @@ export class AuthService {
     await this.authPasswordService.isPasswordStrong(
       updatePasswordDto.newPassword,
     );
-    return await this.accountRepository.Transaction(
-      async (tx) => {
-        const account = await this.accountRepository.FindByIdWithCredentials(
-          id,
-          false,
-          tx,
-        );
 
-        if (!account) {
-          throw AuthException.ACCOUNT_NOT_FOUND;
-        }
+    const account = await this.accountRepository.FindByIdWithCredentials(
+      id,
+      false,
+    );
 
-        const isOwner = accountInfo?.sub === id;
+    if (!account) {
+      throw AuthException.ACCOUNT_NOT_FOUND;
+    }
 
-        const isAdmin = accountInfo?.role === Role.ADMIN;
-        if (!isOwner && !isAdmin) {
-          throw AuthException.INSUFFICIENT_PERMISSION;
-        }
+    const isOwner = accountInfo?.sub === id;
 
-        if (!isAdmin) {
-          await this.authPasswordService.comparePasswords(
-            updatePasswordDto.currentPassword,
-            account.passwordHash,
-          );
-        }
+    const isAdmin = accountInfo?.role === Role.ADMIN;
+    if (!isOwner && !isAdmin) {
+      throw AuthException.INSUFFICIENT_PERMISSION;
+    }
 
-        if ((account.status = AccountStatus.NEED_CHANGE_PASSWORD)) {
-          account.status = AccountStatus.ACTIVE;
-        }
+    if (!isAdmin) {
+      await this.authPasswordService.comparePasswords(
+        updatePasswordDto.currentPassword,
+        account.passwordHash,
+      );
+    }
 
-        const { salt, hash } = await this.authPasswordService.hashPassword(
-          updatePasswordDto.newPassword,
-        );
+    if ((account.status = AccountStatus.NEED_CHANGE_PASSWORD)) {
+      account.status = AccountStatus.ACTIVE;
+    }
 
-        return (
-          this.accountRepository.Update(
-            account.id,
-            {
-              passwordSalt: salt,
-              passwordHash: hash,
-              status: AccountStatus.ACTIVE,
-            },
-            tx,
-          ) != null
-        );
-      },
+    const { salt, hash } = await this.authPasswordService.hashPassword(
+      updatePasswordDto.newPassword,
+    );
+
+    return (
+      this.accountRepository.Update(account.id, {
+        passwordSalt: salt,
+        passwordHash: hash,
+        status: AccountStatus.ACTIVE,
+      }) != null
     );
   }
 
@@ -163,14 +163,17 @@ export class AuthService {
    * token is already committed, so the user simply gets nothing and retries.
    * The reverse — mail sent, token rolled back — would hand them a link that is
    * guaranteed to fail.
+   *
+   * This is the one method here that keeps an explicit Transaction() block
+   * rather than @Transactional(): the transaction has to be *narrower* than the
+   * method, and a visible block says so where a method-level decorator would
+   * quietly pull the send back inside. Repository calls within it still join
+   * ambiently — BaseRepository.Transaction publishes the client to
+   * AsyncLocalStorage — so nothing is threaded.
    */
   async ResetPassword(email: string): Promise<void> {
-    const resetToken = await this.accountRepository.Transaction(async (tx) => {
-      const account = await this.accountRepository.FindByEmail(
-        email,
-        false,
-        tx,
-      );
+    const resetToken = await this.accountRepository.Transaction(async () => {
+      const account = await this.accountRepository.FindByEmail(email, false);
       if (!account) {
         throw AuthException.ACCOUNT_NOT_FOUND;
       }
@@ -196,19 +199,12 @@ export class AuthService {
         usable: true,
       };
 
-      // `tx` was missing here: the invalidation ran on the plain client, so a
-      // rollback left the old tokens dead and the new one gone — an account
-      // with no usable reset token at all.
       await this.resetPasswordTokenRepository.BatchUpdate(
         { accountId: account.id, usable: true },
         { usable: false },
-        tx,
       );
 
-      await this.resetPasswordTokenRepository.Create(
-        resetPasswordTokenData,
-        tx,
-      );
+      await this.resetPasswordTokenRepository.Create(resetPasswordTokenData);
 
       return token;
     });
@@ -263,71 +259,62 @@ export class AuthService {
     return rendered;
   }
 
+  @Transactional()
   async VerifyResetPasswordToken(
     verifyResetPasswordTokenDto: VerifyResetPasswordTokenDto,
   ): Promise<boolean> {
-    return await this.accountRepository.Transaction(
-      async (tx) => {
-        const { token, password, confirmPassword } =
-          verifyResetPasswordTokenDto;
+    const { token, password, confirmPassword } = verifyResetPasswordTokenDto;
 
-        if (password !== confirmPassword) {
-          throw AuthException.PASSWORD_NOT_MATCH;
-        }
+    if (password !== confirmPassword) {
+      throw AuthException.PASSWORD_NOT_MATCH;
+    }
 
-        await this.authPasswordService.isPasswordStrong(password);
+    await this.authPasswordService.isPasswordStrong(password);
 
-        if (!token) {
-          throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
-        }
-        const decoded =
-          await this.authJwtService.verifyResetPasswordToken(token);
+    if (!token) {
+      throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
+    }
+    const decoded = await this.authJwtService.verifyResetPasswordToken(token);
 
-        if (!decoded) {
-          throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
-        }
+    if (!decoded) {
+      throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
+    }
 
-        const resetPasswordTokens =
-          await this.resetPasswordTokenRepository.FindActiveTokenByAccountId(
-            decoded.sub,
-            tx,
-          );
+    const resetPasswordTokens =
+      await this.resetPasswordTokenRepository.FindActiveTokenByAccountId(
+        decoded.sub,
+      );
 
-        if (!resetPasswordTokens) {
-          throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
-        }
+    if (!resetPasswordTokens) {
+      throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
+    }
 
-        //no need to validate time because jwt verify already do that
-        await this.authJwtService.compareResetTokenHash(
-          token,
-          resetPasswordTokens.tokenHash,
-        );
-
-        const account = await this.accountRepository.FindById(
-          decoded.sub,
-          false,
-        );
-        if (!account) {
-          throw AuthException.ACCOUNT_NOT_FOUND;
-        }
-
-        const { salt, hash } =
-          await this.authPasswordService.hashPassword(password);
-
-        await this.accountRepository.Update(
-          account.id,
-          { passwordSalt: salt, passwordHash: hash },
-          tx,
-        );
-
-        //invalidate the used token
-        const result = await this.resetPasswordTokenRepository.Update(
-          resetPasswordTokens.id,
-          { usable: false },
-          tx,
-        );
-        return result != null;
-      },
+    //no need to validate time because jwt verify already do that
+    await this.authJwtService.compareResetTokenHash(
+      token,
+      resetPasswordTokens.tokenHash,
     );
+
+    // Previously threaded no tx, so this read ran outside the transaction.
+    // It joins ambiently now.
+    const account = await this.accountRepository.FindById(decoded.sub, false);
+    if (!account) {
+      throw AuthException.ACCOUNT_NOT_FOUND;
+    }
+
+    const { salt, hash } =
+      await this.authPasswordService.hashPassword(password);
+
+    await this.accountRepository.Update(account.id, {
+      passwordSalt: salt,
+      passwordHash: hash,
+    });
+
+    //invalidate the used token
+    const result = await this.resetPasswordTokenRepository.Update(
+      resetPasswordTokens.id,
+      { usable: false },
+    );
+    return result != null;
   }
 }
