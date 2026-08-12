@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Account, Prisma } from '@prisma/client';
 import { PrismaService } from 'src/common/database/prisma.service';
+import { BaseRepository } from 'src/common/database/base.repository';
 import { PaginationResultDto } from 'src/common/pagination/pagination-result.dto';
 import { FilterAccountDto } from './dtos/filter-account.dto';
 import { Role } from './enums/role.enum';
@@ -41,26 +42,13 @@ const WITH_CREDENTIALS = {
 } as const;
 
 @Injectable()
-export class AccountRepository {
-  constructor(private readonly prisma: PrismaService) {}
-
-  /**
-   * Prisma's transaction client where a caller passes one, otherwise the plain
-   * client. Replaces TypeORM's GetRepository(entityManager).
-   */
-  private db(tx?: Prisma.TransactionClient) {
-    return tx ?? this.prisma;
+export class AccountRepository extends BaseRepository {
+  // Redeclared so Nest emits design:paramtypes on the concrete class.
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
 
-  /**
-   * Runs `fn` inside a transaction. Callers pass the received `tx` down into
-   * any repository method so every write joins the same transaction.
-   */
-  async Transaction<T>(
-    fn: (tx: Prisma.TransactionClient) => Promise<T>,
-  ): Promise<T> {
-    return this.prisma.$transaction(fn);
-  }
+
 
   /** Shared filter so FindAll and FindPaginated cannot drift apart. */
   private buildWhere(

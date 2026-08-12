@@ -1,19 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/common/database/prisma.service';
+import { BaseRepository } from 'src/common/database/base.repository';
 import { Prisma, ResetPasswordToken } from '@prisma/client';
 
 @Injectable()
-export class ResetPasswordTokenRepository {
-  constructor(private readonly prisma: PrismaService) {}
-
-  private db(tx?: Prisma.TransactionClient) {
-    return tx ?? this.prisma;
-  }
-
-  async Transaction<T>(
-    fn: (tx: Prisma.TransactionClient) => Promise<T>,
-  ): Promise<T> {
-    return this.prisma.$transaction(fn);
+export class ResetPasswordTokenRepository extends BaseRepository {
+  // Redeclared so Nest emits design:paramtypes on the concrete class.
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
 
   async Create(

@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { omit } from 'lodash';
 import { PrismaService } from 'src/common/database/prisma.service';
+import { BaseRepository } from 'src/common/database/base.repository';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
-export class ErrorLogRepository {
-  constructor(private readonly prisma: PrismaService) {}
+export class ErrorLogRepository extends BaseRepository {
+  // Redeclared so Nest emits design:paramtypes on the concrete class.
+  constructor(prisma: PrismaService) {
+    super(prisma);
+  }
 
   async saveLog(
     statusCode: number,
