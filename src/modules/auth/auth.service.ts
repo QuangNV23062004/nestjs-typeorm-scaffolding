@@ -1,4 +1,7 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { Transactional } from 'src/common/database/transaction.context';
 import { AccountRepository } from '../account/account.repository';
 import { TypedConfigService } from 'src/common/typed-config/typed-config.service';
 import { Status as AccountStatus } from '../account/enums/account-status.enum';
@@ -22,6 +25,12 @@ import { AuthTemplateService } from './services/auth-template.service';
 export class AuthService {
   constructor(
     private readonly typedConfigService: TypedConfigService,
+
+    // Read by @Transactional() to open the transaction. It would otherwise fall
+    // back to the DataSource DatabaseModule registers on init, which works in
+    // the running app but not in a test module compiled without .init().
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
 
     private readonly accountRepository: AccountRepository,
 
@@ -94,59 +103,48 @@ export class AuthService {
     return this.accountRepository.FindById(id, false);
   }
 
+  @Transactional()
   async UpdatePassword(
     id: string,
     updatePasswordDto: UpdatePasswordDto,
     accountInfo?: AccountInfo,
   ): Promise<boolean> {
-    const entityManager = await this.accountRepository.GetEntityManager();
-
     await this.authPasswordService.isPasswordStrong(
       updatePasswordDto.newPassword,
     );
-    return await entityManager.transaction(
-      async (transactionalEntityManager) => {
-        const account = await this.accountRepository.FindById(
-          id,
-          false,
-          transactionalEntityManager,
-        );
 
-        if (!account) {
-          throw AuthException.ACCOUNT_NOT_FOUND;
-        }
+    const account = await this.accountRepository.FindById(id, false);
 
-        const isOwner = accountInfo?.sub === id;
+    if (!account) {
+      throw AuthException.ACCOUNT_NOT_FOUND;
+    }
 
-        const isAdmin = accountInfo?.role === Role.ADMIN;
-        if (!isOwner && !isAdmin) {
-          throw AuthException.INSUFFICIENT_PERMISSION;
-        }
+    const isOwner = accountInfo?.sub === id;
 
-        if (!isAdmin) {
-          await this.authPasswordService.comparePasswords(
-            updatePasswordDto.currentPassword,
-            account.passwordHash,
-          );
-        }
+    const isAdmin = accountInfo?.role === Role.ADMIN;
+    if (!isOwner && !isAdmin) {
+      throw AuthException.INSUFFICIENT_PERMISSION;
+    }
 
-        if ((account.status = AccountStatus.NEED_CHANGE_PASSWORD)) {
-          account.status = AccountStatus.ACTIVE;
-        }
+    if (!isAdmin) {
+      await this.authPasswordService.comparePasswords(
+        updatePasswordDto.currentPassword,
+        account.passwordHash,
+      );
+    }
 
-        const { salt, hash } = await this.authPasswordService.hashPassword(
-          updatePasswordDto.newPassword,
-        );
+    if ((account.status = AccountStatus.NEED_CHANGE_PASSWORD)) {
+      account.status = AccountStatus.ACTIVE;
+    }
 
-        account.passwordSalt = salt;
-        account.passwordHash = hash;
-
-        return (
-          this.accountRepository.Update(account, transactionalEntityManager) !=
-          null
-        );
-      },
+    const { salt, hash } = await this.authPasswordService.hashPassword(
+      updatePasswordDto.newPassword,
     );
+
+    account.passwordSalt = salt;
+    account.passwordHash = hash;
+
+    return this.accountRepository.Update(account) != null;
   }
 
   /**
@@ -162,56 +160,41 @@ export class AuthService {
    * guaranteed to fail.
    */
   async ResetPassword(email: string): Promise<void> {
-    const entityManager = await this.accountRepository.GetEntityManager();
-    const resetToken = await entityManager.transaction(
-      async (transactionalEntityManager) => {
-        const account = await this.accountRepository.FindByEmail(
-          email,
-          false,
-          transactionalEntityManager,
-        );
-        if (!account) {
-          throw AuthException.ACCOUNT_NOT_FOUND;
-        }
+    const resetToken = await this.accountRepository.Transaction(async () => {
+      const account = await this.accountRepository.FindByEmail(email, false);
+      if (!account) {
+        throw AuthException.ACCOUNT_NOT_FOUND;
+      }
 
-        const payload = {
-          sub: account.id,
-        };
+      const payload = {
+        sub: account.id,
+      };
 
-        const resetToken =
-          await this.authJwtService.createResetPasswordToken(payload);
+      const resetToken =
+        await this.authJwtService.createResetPasswordToken(payload);
 
-        const hash = await this.authPasswordService.hashToken(resetToken);
+      const hash = await this.authPasswordService.hashToken(resetToken);
 
-        const resetPasswordTokenEntity = new ResetPasswordTokenEntity();
-        resetPasswordTokenEntity.accountId = account.id;
-        resetPasswordTokenEntity.tokenHash = hash;
-        resetPasswordTokenEntity.expiresAt = new Date(
-          Date.now() +
-            this.authJwtService.parseExpiresIn(
-              this.typedConfigService.jwt.resetPasswordExpiresIn,
-            ),
-        );
-        resetPasswordTokenEntity.usable = true;
+      const resetPasswordTokenEntity = new ResetPasswordTokenEntity();
+      resetPasswordTokenEntity.accountId = account.id;
+      resetPasswordTokenEntity.tokenHash = hash;
+      resetPasswordTokenEntity.expiresAt = new Date(
+        Date.now() +
+          this.authJwtService.parseExpiresIn(
+            this.typedConfigService.jwt.resetPasswordExpiresIn,
+          ),
+      );
+      resetPasswordTokenEntity.usable = true;
 
-        // The manager was missing here while the Create below had it: the
-        // invalidation ran outside the transaction, so a rollback left the old
-        // tokens dead and the new one gone - an account with no usable reset
-        // token at all.
-        await this.resetPasswordTokenRepository.BatchUpdate(
-          { accountId: account.id, usable: true },
-          { usable: false },
-          transactionalEntityManager,
-        );
+      await this.resetPasswordTokenRepository.BatchUpdate(
+      { accountId: account.id, usable: true },
+      { usable: false },
+      );
 
-        await this.resetPasswordTokenRepository.Create(
-          resetPasswordTokenEntity,
-          transactionalEntityManager,
-        );
+      await this.resetPasswordTokenRepository.Create(resetPasswordTokenEntity);
 
-        return resetToken;
-      },
-    );
+      return resetToken;
+    });
 
     const template =
       await this.authTemplateService.getResetPasswordEmailTemplate();
@@ -263,74 +246,66 @@ export class AuthService {
     return rendered;
   }
 
+  @Transactional()
   async VerifyResetPasswordToken(
     verifyResetPasswordTokenDto: VerifyResetPasswordTokenDto,
   ): Promise<boolean> {
-    const entityManager = await this.accountRepository.GetEntityManager();
-    return await entityManager.transaction(
-      async (transactionalEntityManager) => {
-        const { token, password, confirmPassword } =
-          verifyResetPasswordTokenDto;
+    const { token, password, confirmPassword } =
+      verifyResetPasswordTokenDto;
 
-        if (password !== confirmPassword) {
-          throw AuthException.PASSWORD_NOT_MATCH;
-        }
+    if (password !== confirmPassword) {
+      throw AuthException.PASSWORD_NOT_MATCH;
+    }
 
-        await this.authPasswordService.isPasswordStrong(password);
+    await this.authPasswordService.isPasswordStrong(password);
 
-        if (!token) {
-          throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
-        }
-        const decoded =
-          await this.authJwtService.verifyResetPasswordToken(token);
+    if (!token) {
+      throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
+    }
+    const decoded =
+      await this.authJwtService.verifyResetPasswordToken(token);
 
-        if (!decoded) {
-          throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
-        }
+    if (!decoded) {
+      throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
+    }
 
-        const resetPasswordTokens =
-          await this.resetPasswordTokenRepository.FindActiveTokenByAccountId(
-            decoded.sub,
-            transactionalEntityManager,
-          );
+    const resetPasswordTokens =
+      await this.resetPasswordTokenRepository.FindActiveTokenByAccountId(
+        decoded.sub,
+      );
 
-        if (!resetPasswordTokens) {
-          throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
-        }
+    if (!resetPasswordTokens) {
+      throw AuthException.INVALID_RESET_PASSWORD_TOKEN;
+    }
 
-        //no need to validate time because jwt verify already do that
-        await this.authJwtService.compareResetTokenHash(
-          token,
-          resetPasswordTokens.tokenHash,
-        );
-
-        const account = await this.accountRepository.FindById(
-          decoded.sub,
-          false,
-        );
-        if (!account) {
-          throw AuthException.ACCOUNT_NOT_FOUND;
-        }
-
-        const { salt, hash } =
-          await this.authPasswordService.hashPassword(password);
-
-        account.passwordSalt = salt;
-        account.passwordHash = hash;
-
-        await this.accountRepository.Update(
-          account,
-          transactionalEntityManager,
-        );
-
-        //invalidate the used token
-        resetPasswordTokens.usable = false;
-        const result = await this.resetPasswordTokenRepository.Update(
-          resetPasswordTokens,
-          transactionalEntityManager,
-        );
-        return result != null;
-      },
+    //no need to validate time because jwt verify already do that
+    await this.authJwtService.compareResetTokenHash(
+      token,
+      resetPasswordTokens.tokenHash,
     );
+
+    // Previously threaded no manager, so this read ran outside the
+    // transaction. It joins ambiently now.
+    const account = await this.accountRepository.FindById(decoded.sub, false);
+    if (!account) {
+      throw AuthException.ACCOUNT_NOT_FOUND;
+    }
+
+    const { salt, hash } =
+      await this.authPasswordService.hashPassword(password);
+
+    account.passwordSalt = salt;
+    account.passwordHash = hash;
+
+    await this.accountRepository.Update(
+      account,
+    );
+
+    //invalidate the used token
+    resetPasswordTokens.usable = false;
+    const result = await this.resetPasswordTokenRepository.Update(
+      resetPasswordTokens,
+    );
+    return result != null;
   }
 }
